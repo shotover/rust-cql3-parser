@@ -33,11 +33,11 @@ pub enum CassandraStatement {
     DropTrigger,
     DropType(DropData),
     DropUser(DropData),
-    Grant(GrantRevokeData),
+    Grant(PrivilegeData),
     InsertStatement(InsertStatementData),
-    ListPermissions(GrantRevokeData),
-    ListRoles,
-    Revoke(GrantRevokeData),
+    ListPermissions(PrivilegeData),
+    ListRoles(ListRoleData),
+    Revoke(PrivilegeData),
     SelectStatement(SelectStatementData),
     Truncate(String),
     Update(UpdateStatementData),
@@ -46,7 +46,26 @@ pub enum CassandraStatement {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct GrantRevokeData {
+pub struct ListRoleData {
+    pub of: Option<String>,
+    pub no_recurse : bool,
+}
+
+impl Display for ListRoleData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+
+        let mut s : String = "".to_string();
+        if self.of.is_some() {
+            s = " OF ".to_string();
+            s.push_str(self.of.as_ref().unwrap().as_str());
+        }
+        write!(f, "LIST ROLES{}{}", s.as_str(),
+        if self.no_recurse { " NORECURSIVE"}else{""})
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct PrivilegeData {
     pub privilege: Privilege,
     pub resource : Option<Resource>,
     pub role : Option<String>,
@@ -894,13 +913,13 @@ impl CassandraStatement {
             "drop_user" => {
                 CassandraStatement::DropUser(CassandraParser::parse_standard_drop(&node, source))
             }
-            "grant" => CassandraStatement::Grant(CassandraParser::parse_grant_revoke_data(&node,source)),
+            "grant" => CassandraStatement::Grant(CassandraParser::parse_privilege_data(&node, source)),
             "insert_statement" => CassandraStatement::InsertStatement(
                 CassandraParser::build_insert_statement(node, source),
             ),
-            "list_permissions" => CassandraStatement::ListPermissions(CassandraParser::parse_grant_revoke_data(&node,source)),
-            "list_roles" => CassandraStatement::ListRoles,
-            "revoke" => CassandraStatement::Revoke(CassandraParser::parse_grant_revoke_data(&node,source)),
+            "list_permissions" => CassandraStatement::ListPermissions(CassandraParser::parse_privilege_data(&node, source)),
+            "list_roles" => CassandraStatement::ListRoles(CassandraParser::parse_list_role_data(&node, source)),
+            "revoke" => CassandraStatement::Revoke(CassandraParser::parse_privilege_data(&node, source)),
             "select_statement" => CassandraStatement::SelectStatement(
                 CassandraParser::build_select_statement(node, source),
             ),
@@ -938,6 +957,25 @@ impl CassandraStatement {
 
 struct CassandraParser {}
 impl CassandraParser {
+
+    fn parse_list_role_data(node: &Node, source: &String) -> ListRoleData {
+        let mut cursor = node.walk();
+        let mut result = ListRoleData{ of: None, no_recurse: false };
+        let kind = cursor.node().kind();
+
+        cursor.goto_first_child();
+        // consume 'LIST'
+        cursor.goto_next_sibling();
+        // consume 'ROLES'
+        while cursor.goto_next_sibling() {
+            match cursor.node().kind() {
+                "role" => result.of = Some(NodeFuncs::as_string(&cursor.node(), source)),
+                "NORECURSIVE" => result.no_recurse = true,
+                _ => {}
+            }
+        }
+        result
+    }
 
     fn parse_resource(node: &Node, source: &String) -> Resource {
         let mut cursor = node.walk();
@@ -1217,7 +1255,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_grant_revoke_data(node: &Node, source: &String) -> GrantRevokeData {
+    fn parse_privilege_data(node: &Node, source: &String) -> PrivilegeData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
@@ -1237,7 +1275,7 @@ impl CassandraParser {
                 _ => {},
             }
         }
-        GrantRevokeData {
+        PrivilegeData {
             privilege: privilege.unwrap(),
             resource,
             role
@@ -2081,7 +2119,7 @@ impl ToString for CassandraStatement {
                 }
                 result
             },
-            CassandraStatement::ListRoles => unimplemented,
+            CassandraStatement::ListRoles( data ) => data.to_string(),
             CassandraStatement::Revoke(grant_data) => format!("REVOKE {} ON {} FROM {}", grant_data.privilege, grant_data.resource.as_ref().unwrap(), grant_data.role.as_ref().unwrap()),
             CassandraStatement::SelectStatement(statement_data) => statement_data.to_string(),
             CassandraStatement::Truncate(table) => format!("TRUNCATE TABLE {}", table).to_string(),
@@ -2367,7 +2405,6 @@ mod tests {
             "CREATE TRIGGER if not exists keyspace.trigger_name USING 'trigger_class';",
             "CREATE TYPE type ( col1 'foo');",
             "DROP TRIGGER trigger_name ON ks.table_name;",
-            "LIST ROLES;",
             "Not a valid statement"];
         let types = [
             CassandraStatement::AlterMaterializedView,
@@ -2382,7 +2419,6 @@ mod tests {
             CassandraStatement::CreateTrigger,
             CassandraStatement::CreateType,
             CassandraStatement::DropTrigger,
-            CassandraStatement::ListRoles,
             CassandraStatement::UNKNOWN("Not a valid statement".to_string()),
         ];
 
@@ -2837,6 +2873,23 @@ mod tests {
             "LIST ALL PERMISSIONS ON TABLE 'keyspace'.table OF role",
             "LIST ALL PERMISSIONS ON TABLE 'table' OF role",
             "LIST ALL PERMISSIONS ON TABLE 'table' OF role",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_list_roles() {
+        let stmts = [
+            "LIST ROLES;",
+        "LIST ROLES NORECURSIVE;",
+        "LIST ROLES OF role_name;",
+        "LIST ROLES OF role_name NORECURSIVE",
+        ];
+        let expected = [
+            "LIST ROLES",
+            "LIST ROLES NORECURSIVE",
+            "LIST ROLES OF role_name",
+            "LIST ROLES OF role_name NORECURSIVE",
         ];
         test_parsing(&expected, &stmts);
     }
