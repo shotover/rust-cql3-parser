@@ -78,7 +78,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-cql"
 version = "0.0.1"
-source = "git+https://github.com/Claude-at-Instaclustr/tree-sitter-cql#da5b67f34bfb75d8a461cdeea6d2f5e8f0a9dc6f"
+source = "git+https://github.com/Claude-at-Instaclustr/tree-sitter-cql#eb3b71efda1f2dd943b108ca468e990c955b1658"
 dependencies = [
  "cc",
  "regex",

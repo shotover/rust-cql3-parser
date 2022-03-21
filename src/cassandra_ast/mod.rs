@@ -33,17 +33,25 @@ pub enum CassandraStatement {
     DropTrigger,
     DropType(DropData),
     DropUser(DropData),
-    Grant,
+    Grant(GrantRevokeData),
     InsertStatement(InsertStatementData),
     ListPermissions,
     ListRoles,
-    Revoke,
+    Revoke(GrantRevokeData),
     SelectStatement(SelectStatementData),
     Truncate(String),
     Update(UpdateStatementData),
     UseStatement(String),
     UNKNOWN(String),
 }
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct GrantRevokeData {
+    pub priviledge : Privilege,
+    pub resource : Resource,
+    pub role : String,
+}
+
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct UpdateStatementData {
@@ -886,13 +894,13 @@ impl CassandraStatement {
             "drop_user" => {
                 CassandraStatement::DropUser(CassandraParser::parse_standard_drop(&node, source))
             }
-            "grant" => CassandraStatement::Grant,
+            "grant" => CassandraStatement::Grant(CassandraParser::parse_grant_revoke_data(&node,source)),
             "insert_statement" => CassandraStatement::InsertStatement(
                 CassandraParser::build_insert_statement(node, source),
             ),
             "list_permissions" => CassandraStatement::ListPermissions,
             "list_roles" => CassandraStatement::ListRoles,
-            "revoke" => CassandraStatement::Revoke,
+            "revoke" => CassandraStatement::Revoke(CassandraParser::parse_grant_revoke_data(&node,source)),
             "select_statement" => CassandraStatement::SelectStatement(
                 CassandraParser::build_select_statement(node, source),
             ),
@@ -930,6 +938,51 @@ impl CassandraStatement {
 
 struct CassandraParser {}
 impl CassandraParser {
+
+    fn parse_resource(node: &Node, source: &String) -> Resource {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        match cursor.node().kind() {
+            "ALL" => {
+                cursor.goto_next_sibling();
+                match cursor.node().kind() {
+                    "FUNCTIONS" => {
+                        if cursor.goto_next_sibling() {
+                            // consume 'IN'
+                            cursor.goto_next_sibling();
+                            // consume 'KEYSPACE'
+                            cursor.goto_next_sibling();
+                            Resource::ALL_FUNCTIONS(Some(NodeFuncs::as_string(&cursor.node(), source)))
+                        } else {
+                            Resource::ALL_FUNCTIONS(None)
+                        }
+                    }
+                    "KEYSPACES" => Resource::ALL_KEYSPACES,
+                    "ROLES" => Resource::ALL_ROLES,
+                    _ => unreachable!(),
+                }
+            },
+            "FUNCTION" => {
+                cursor.goto_next_sibling();
+                Resource::FUNCTION(CassandraParser::parse_dotted_name(&mut cursor, source))
+            },
+            "KEYSPACE" => {
+                cursor.goto_next_sibling();
+                Resource::KEYSPACE(NodeFuncs::as_string(&cursor.node(), source))
+            },
+            "ROLE" => {
+                cursor.goto_next_sibling();
+                Resource::ROLE(NodeFuncs::as_string(&cursor.node(), source))
+            },
+            "TABLE" => {
+                cursor.goto_next_sibling();
+                Resource::TABLE(CassandraParser::parse_dotted_name(&mut cursor, source))
+            },
+            _ => {
+                Resource::TABLE(CassandraParser::parse_dotted_name(&mut cursor, source)) },
+        }
+    }
+
     fn parse_role_data(node: &Node, source: &String) -> RoleData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1161,6 +1214,33 @@ impl CassandraParser {
             "MODIFY" => Privilege::MODIFY ,
             "SELECT"=> Privilege::SELECT,
             _ => unreachable!(),
+        }
+    }
+
+    fn parse_grant_revoke_data(node: &Node, source: &String) -> GrantRevokeData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+
+        let mut privilege: Option<Privilege> = None;
+        let mut resource : Option<Resource> = None;
+        let mut role : String = "".to_string();
+        // consume 'GRANT/REVOKE'
+        while cursor.goto_next_sibling() {
+            match cursor.node().kind() {
+                "privilege" =>  {
+                    privilege = Some(CassandraParser::parse_privilege(&cursor.node(), source));
+                },
+                "resource" => {
+                    resource = Some(CassandraParser::parse_resource( &cursor.node(), source));
+                }
+                "role" => role = NodeFuncs::as_string( &cursor.node(), source ),
+                _ => {},
+            }
+        }
+        GrantRevokeData {
+            priviledge : privilege.unwrap(),
+            resource : resource.unwrap(),
+            role
         }
     }
 
@@ -1624,7 +1704,7 @@ impl CassandraParser {
     }
 
     fn parse_assignment_tuple(node: &Node, source: &String) -> Vec<Operand> {
-        // ( expression, expresson ... )
+        // ( expression, expression ... )
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume '('
@@ -1987,11 +2067,11 @@ impl ToString for CassandraStatement {
             CassandraStatement::DropTrigger => unimplemented,
             CassandraStatement::DropType(drop_data) => drop_data.get_text("TYPE"),
             CassandraStatement::DropUser(drop_data) => drop_data.get_text("USER"),
-            CassandraStatement::Grant => unimplemented,
+            CassandraStatement::Grant(grant_data) => format!( "GRANT {} ON {} TO {}", grant_data.priviledge, grant_data.resource, grant_data.role),
             CassandraStatement::InsertStatement(statement_data) => statement_data.to_string(),
             CassandraStatement::ListPermissions => unimplemented,
             CassandraStatement::ListRoles => unimplemented,
-            CassandraStatement::Revoke => unimplemented,
+            CassandraStatement::Revoke(grant_data) => format!( "REVOKE {} ON {} FROM {}", grant_data.priviledge, grant_data.resource, grant_data.role),
             CassandraStatement::SelectStatement(statement_data) => statement_data.to_string(),
             CassandraStatement::Truncate(table) => format!("TRUNCATE TABLE {}", table).to_string(),
             CassandraStatement::Update(statement_data) => statement_data.to_string(),
@@ -2001,6 +2081,7 @@ impl ToString for CassandraStatement {
     }
 }
 
+#[derive(PartialEq, Debug, Clone)]
 pub enum Privilege {
     ALL,
     ALTER,
@@ -2012,6 +2093,53 @@ pub enum Privilege {
     MODIFY,
     SELECT,
 }
+
+impl Display for Privilege {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Privilege::ALL => write!(f, "ALL PERMISSIONS"),
+            Privilege::ALTER => write!(f, "ALTER" ),
+            Privilege::AUTHORIZE => write!(f, "AUTHORIZE" ),
+            Privilege::DESCRIBE => write!(f, "DESCRIBE" ),
+            Privilege::EXECUTE => write!(f, "EXECUTE" ),
+            Privilege::CREATE => write!(f, "CREATE" ),
+            Privilege::DROP => write!(f, "DROP" ),
+            Privilege::MODIFY => write!(f, "MODIFY" ),
+            Privilege::SELECT => write!(f, "SELECT" ),
+            }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum Resource {
+    // optional keyspace
+    ALL_FUNCTIONS( Option<String> ),
+    ALL_KEYSPACES,
+    ALL_ROLES,
+    FUNCTION( String),
+    KEYSPACE( String),
+    ROLE(String),
+    TABLE( String ),
+}
+
+impl Display for Resource {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Resource::ALL_FUNCTIONS(str) => {
+                if str.is_some() {
+                    write!(f, "ALL FUNCTIONS IN KEYSPACE {}", str.as_ref().unwrap())
+                } else { write!(f, "ALL FUNCTIONS") }
+            },
+            Resource::ALL_KEYSPACES => write!(f, "ALL KEYSPACES"),
+            Resource::ALL_ROLES => write!(f, "ALL ROLES"),
+            Resource::FUNCTION(func) => write!(f, "FUNCTION {}", func),
+            Resource::KEYSPACE(keyspace) => write!(f, "KEYSPACE {}", keyspace),
+            Resource::ROLE(role) => write!(f, "ROLE {}", role),
+            Resource::TABLE(table) => write!(f, "TABLE {}", table),
+        }
+    }
+}
+
 pub struct CassandraAST {
     /// The query string
     text: String,
@@ -2078,7 +2206,7 @@ impl SearchPattern {
     /// The string is a regular expression so `foo|bar` will match either 'foo' or 'bar'.
     ///
     /// There is a child pattern (also a regular expression) that will verify if a node has
-    /// the child but still retur nthe node.  (e.g. `foo[bar]` will return all `foo` nodes
+    /// the child but still return the node.  (e.g. `foo[bar]` will return all `foo` nodes
     /// that have a `bar` somewhere below them.
     pub fn from_str(pattern: &str) -> SearchPattern {
         let parts: Vec<&str> = pattern.split("[").collect();
@@ -2103,7 +2231,7 @@ impl SearchPattern {
 
 #[cfg(test)]
 mod tests {
-    use crate::transforms::cassandra::cassandra_ast::{CassandraAST, CassandraStatement};
+    use crate::cassandra_ast::{CassandraAST, CassandraStatement};
 
     fn test_parsing(expected: &[&str], statements: &[&str]) {
         for i in 0..statements.len() {
@@ -2272,10 +2400,8 @@ mod tests {
             "CREATE TRIGGER if not exists keyspace.trigger_name USING 'trigger_class';",
             "CREATE TYPE type ( col1 'foo');",
             "DROP TRIGGER trigger_name ON ks.table_name;",
-            "GRANT ALL ON 'keyspace'.table TO role;",
             "LIST ALL;",
             "LIST ROLES;",
-            "REVOKE ALL ON ALL ROLES FROM role;",
             "Not a valid statement"];
         let types = [
             CassandraStatement::AlterMaterializedView,
@@ -2290,10 +2416,8 @@ mod tests {
             CassandraStatement::CreateTrigger,
             CassandraStatement::CreateType,
             CassandraStatement::DropTrigger,
-            CassandraStatement::Grant,
             CassandraStatement::ListPermissions,
             CassandraStatement::ListRoles,
-            CassandraStatement::Revoke,
             CassandraStatement::UNKNOWN("Not a valid statement".to_string()),
         ];
 
@@ -2594,6 +2718,107 @@ mod tests {
         let expected = [
             "ALTER KEYSPACE keyspace WITH REPLICATION = {'foo':'bar', 'baz':5}",
             "ALTER KEYSPACE keyspace WITH REPLICATION = {'foo':5} AND DURABLE_WRITES = TRUE",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_grant() {
+        let stmts = [
+            "GRANT ALL ON 'keyspace'.table TO role;",
+            "GRANT ALL PERMISSIONS ON 'keyspace'.table TO role;",
+            "GRANT ALTER ON 'keyspace'.table TO role;",
+            "GRANT AUTHORIZE ON 'keyspace'.table TO role;",
+            "GRANT DESCRIBE ON 'keyspace'.table TO role;",
+            "GRANT EXECUTE ON 'keyspace'.table TO role;",
+            "GRANT CREATE ON 'keyspace'.table TO role;",
+            "GRANT DROP ON 'keyspace'.table TO role;",
+            "GRANT MODIFY ON 'keyspace'.table TO role;",
+            "GRANT SELECT ON 'keyspace'.table TO role;",
+            "GRANT ALL ON ALL FUNCTIONS TO role;",
+            "GRANT ALL ON ALL FUNCTIONS IN KEYSPACE keyspace TO role;",
+            "GRANT ALL ON ALL KEYSPACES TO role;",
+            "GRANT ALL ON ALL ROLES TO role;",
+            "GRANT ALL ON FUNCTION 'keyspace'.function TO role;",
+            "GRANT ALL ON FUNCTION 'function' TO role;",
+            "GRANT ALL ON KEYSPACE 'keyspace' TO role;",
+            "GRANT ALL ON ROLE 'role' TO role;",
+            "GRANT ALL ON TABLE 'keyspace'.table TO role;",
+            "GRANT ALL ON TABLE 'table' TO role;",
+            "GRANT ALL ON 'table' TO role;",
+        ];
+        let expected = [
+            "GRANT ALL PERMISSIONS ON TABLE 'keyspace'.table TO role",
+            "GRANT ALTER ON TABLE 'keyspace'.table TO role",
+            "GRANT AUTHORIZE ON TABLE 'keyspace'.table TO role",
+            "GRANT DESCRIBE ON TABLE 'keyspace'.table TO role",
+            "GRANT EXECUTE ON TABLE 'keyspace'.table TO role",
+            "GRANT CREATE ON TABLE 'keyspace'.table TO role",
+            "GRANT DROP ON TABLE 'keyspace'.table TO role",
+            "GRANT MODIFY ON TABLE 'keyspace'.table TO role",
+            "GRANT SELECT ON TABLE 'keyspace'.table TO role",
+            "GRANT ALL PERMISSIONS ON ALL FUNCTIONS TO role",
+            "GRANT ALL PERMISSIONS ON ALL FUNCTIONS IN KEYSPACE keyspace TO role",
+            "GRANT ALL PERMISSIONS ON ALL KEYSPACES TO role",
+            "GRANT ALL PERMISSIONS ON ALL ROLES TO role",
+            "GRANT ALL PERMISSIONS ON FUNCTION 'keyspace'.function TO role",
+            "GRANT ALL PERMISSIONS ON FUNCTION 'function' TO role",
+            "GRANT ALL PERMISSIONS ON KEYSPACE 'keyspace' TO role",
+            "GRANT ALL PERMISSIONS ON ROLE 'role' TO role",
+            "GRANT ALL PERMISSIONS ON TABLE 'keyspace'.table TO role",
+            "GRANT ALL PERMISSIONS ON TABLE 'table' TO role",
+            "GRANT ALL PERMISSIONS ON TABLE 'table' TO role",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_revoke() {
+        let stmts = [
+            "REVOKE ALL ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE ALL PERMISSIONS ON  TABLE'keyspace'.table FROM role;",
+            "REVOKE ALTER ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE AUTHORIZE ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE DESCRIBE ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE EXECUTE ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE CREATE ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE DROP ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE MODIFY ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE SELECT ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE ALL ON ALL FUNCTIONS FROM role;",
+            "REVOKE ALL ON ALL FUNCTIONS IN KEYSPACE keyspace FROM role;",
+            "REVOKE ALL ON ALL KEYSPACES FROM role;",
+            "REVOKE ALL ON ALL ROLES FROM role;",
+            "REVOKE ALL ON FUNCTION 'keyspace'.function FROM role;",
+            "REVOKE ALL ON FUNCTION 'function' FROM role;",
+            "REVOKE ALL ON KEYSPACE 'keyspace' FROM role;",
+            "REVOKE ALL ON ROLE 'role' FROM role;",
+            "REVOKE ALL ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE ALL ON TABLE 'table' FROM role;",
+            "REVOKE ALL ON  TABLE'table' FROM role;",
+        ];
+        let expected = [
+            "REVOKE ALL PERMISSIONS ON TABLE 'keyspace'.table FROM role",
+            "REVOKE ALL PERMISSIONS ON TABLE 'keyspace'.table FROM role",
+            "REVOKE ALTER ON TABLE 'keyspace'.table FROM role",
+            "REVOKE AUTHORIZE ON TABLE 'keyspace'.table FROM role",
+            "REVOKE DESCRIBE ON TABLE 'keyspace'.table FROM role",
+            "REVOKE EXECUTE ON TABLE 'keyspace'.table FROM role",
+            "REVOKE CREATE ON TABLE 'keyspace'.table FROM role",
+            "REVOKE DROP ON TABLE 'keyspace'.table FROM role",
+            "REVOKE MODIFY ON TABLE 'keyspace'.table FROM role",
+            "REVOKE SELECT ON TABLE 'keyspace'.table FROM role",
+            "REVOKE ALL PERMISSIONS ON ALL FUNCTIONS FROM role",
+            "REVOKE ALL PERMISSIONS ON ALL FUNCTIONS IN KEYSPACE keyspace FROM role",
+            "REVOKE ALL PERMISSIONS ON ALL KEYSPACES FROM role",
+            "REVOKE ALL PERMISSIONS ON ALL ROLES FROM role",
+            "REVOKE ALL PERMISSIONS ON FUNCTION 'keyspace'.function FROM role",
+            "REVOKE ALL PERMISSIONS ON FUNCTION 'function' FROM role",
+            "REVOKE ALL PERMISSIONS ON KEYSPACE 'keyspace' FROM role",
+            "REVOKE ALL PERMISSIONS ON ROLE 'role' FROM role",
+            "REVOKE ALL PERMISSIONS ON TABLE 'keyspace'.table FROM role",
+            "REVOKE ALL PERMISSIONS ON TABLE 'table' FROM role",
+            "REVOKE ALL PERMISSIONS ON TABLE 'table' FROM role",
         ];
         test_parsing(&expected, &stmts);
     }
