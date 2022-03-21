@@ -35,7 +35,7 @@ pub enum CassandraStatement {
     DropUser(DropData),
     Grant(GrantRevokeData),
     InsertStatement(InsertStatementData),
-    ListPermissions,
+    ListPermissions(GrantRevokeData),
     ListRoles,
     Revoke(GrantRevokeData),
     SelectStatement(SelectStatementData),
@@ -47,9 +47,9 @@ pub enum CassandraStatement {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct GrantRevokeData {
-    pub priviledge : Privilege,
-    pub resource : Resource,
-    pub role : String,
+    pub privilege: Privilege,
+    pub resource : Option<Resource>,
+    pub role : Option<String>,
 }
 
 
@@ -898,7 +898,7 @@ impl CassandraStatement {
             "insert_statement" => CassandraStatement::InsertStatement(
                 CassandraParser::build_insert_statement(node, source),
             ),
-            "list_permissions" => CassandraStatement::ListPermissions,
+            "list_permissions" => CassandraStatement::ListPermissions(CassandraParser::parse_grant_revoke_data(&node,source)),
             "list_roles" => CassandraStatement::ListRoles,
             "revoke" => CassandraStatement::Revoke(CassandraParser::parse_grant_revoke_data(&node,source)),
             "select_statement" => CassandraStatement::SelectStatement(
@@ -1223,7 +1223,7 @@ impl CassandraParser {
 
         let mut privilege: Option<Privilege> = None;
         let mut resource : Option<Resource> = None;
-        let mut role : String = "".to_string();
+        let mut role : Option<String> = None;
         // consume 'GRANT/REVOKE'
         while cursor.goto_next_sibling() {
             match cursor.node().kind() {
@@ -1233,13 +1233,13 @@ impl CassandraParser {
                 "resource" => {
                     resource = Some(CassandraParser::parse_resource( &cursor.node(), source));
                 }
-                "role" => role = NodeFuncs::as_string( &cursor.node(), source ),
+                "role" => role = Some(NodeFuncs::as_string( &cursor.node(), source )),
                 _ => {},
             }
         }
         GrantRevokeData {
-            priviledge : privilege.unwrap(),
-            resource : resource.unwrap(),
+            privilege: privilege.unwrap(),
+            resource,
             role
         }
     }
@@ -2067,11 +2067,22 @@ impl ToString for CassandraStatement {
             CassandraStatement::DropTrigger => unimplemented,
             CassandraStatement::DropType(drop_data) => drop_data.get_text("TYPE"),
             CassandraStatement::DropUser(drop_data) => drop_data.get_text("USER"),
-            CassandraStatement::Grant(grant_data) => format!( "GRANT {} ON {} TO {}", grant_data.priviledge, grant_data.resource, grant_data.role),
+            CassandraStatement::Grant(grant_data) => format!("GRANT {} ON {} TO {}", grant_data.privilege, grant_data.resource.as_ref().unwrap(), &grant_data.role.as_ref().unwrap()),
             CassandraStatement::InsertStatement(statement_data) => statement_data.to_string(),
-            CassandraStatement::ListPermissions => unimplemented,
+            CassandraStatement::ListPermissions(grant_data) => {
+                let mut result = format!("LIST {}", grant_data.privilege);
+                if grant_data.resource.is_some() {
+                    result.push_str(" ON ");
+                    result.push_str( grant_data.resource.as_ref().unwrap().to_string().as_str() );
+                }
+                if grant_data.role.is_some() {
+                    result.push_str(" OF ");
+                    result.push_str( grant_data.role.as_ref().unwrap().as_str() );
+                }
+                result
+            },
             CassandraStatement::ListRoles => unimplemented,
-            CassandraStatement::Revoke(grant_data) => format!( "REVOKE {} ON {} FROM {}", grant_data.priviledge, grant_data.resource, grant_data.role),
+            CassandraStatement::Revoke(grant_data) => format!("REVOKE {} ON {} FROM {}", grant_data.privilege, grant_data.resource.as_ref().unwrap(), grant_data.role.as_ref().unwrap()),
             CassandraStatement::SelectStatement(statement_data) => statement_data.to_string(),
             CassandraStatement::Truncate(table) => format!("TRUNCATE TABLE {}", table).to_string(),
             CassandraStatement::Update(statement_data) => statement_data.to_string(),
@@ -2400,7 +2411,6 @@ mod tests {
             "CREATE TRIGGER if not exists keyspace.trigger_name USING 'trigger_class';",
             "CREATE TYPE type ( col1 'foo');",
             "DROP TRIGGER trigger_name ON ks.table_name;",
-            "LIST ALL;",
             "LIST ROLES;",
             "Not a valid statement"];
         let types = [
@@ -2416,7 +2426,6 @@ mod tests {
             CassandraStatement::CreateTrigger,
             CassandraStatement::CreateType,
             CassandraStatement::DropTrigger,
-            CassandraStatement::ListPermissions,
             CassandraStatement::ListRoles,
             CassandraStatement::UNKNOWN("Not a valid statement".to_string()),
         ];
@@ -2819,6 +2828,59 @@ mod tests {
             "REVOKE ALL PERMISSIONS ON TABLE 'keyspace'.table FROM role",
             "REVOKE ALL PERMISSIONS ON TABLE 'table' FROM role",
             "REVOKE ALL PERMISSIONS ON TABLE 'table' FROM role",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_list_permissions() {
+        let stmts = [
+            "LIST ALL",
+            "LIST ALL ON TABLE 'keyspace'.table OF role;",
+            "LIST ALL PERMISSIONS ON  TABLE 'keyspace'.table OF role;",
+            "LIST ALTER ON TABLE 'keyspace'.table OF role;",
+            "LIST AUTHORIZE ON TABLE 'keyspace'.table OF role;",
+            "LIST DESCRIBE ON TABLE 'keyspace'.table OF role;",
+            "LIST EXECUTE ON TABLE 'keyspace'.table OF role;",
+            "LIST CREATE ON TABLE 'keyspace'.table OF role;",
+            "LIST DROP ON TABLE 'keyspace'.table OF role;",
+            "LIST MODIFY ON TABLE 'keyspace'.table OF role;",
+            "LIST SELECT ON TABLE 'keyspace'.table OF role;",
+            "LIST ALL ON ALL FUNCTIONS OF role;",
+            "LIST ALL ON ALL FUNCTIONS IN KEYSPACE keyspace OF role;",
+            "LIST ALL ON ALL KEYSPACES OF role;",
+            "LIST ALL ON ALL ROLES OF role;",
+            "LIST ALL ON FUNCTION 'keyspace'.function OF role;",
+            "LIST ALL ON FUNCTION 'function' OF role;",
+            "LIST ALL ON KEYSPACE 'keyspace' OF role;",
+            "LIST ALL ON ROLE 'role' OF role;",
+            "LIST ALL ON TABLE 'keyspace'.table OF role;",
+            "LIST ALL ON TABLE 'table' OF role;",
+            "LIST ALL ON  TABLE 'table' OF role;",
+        ];
+        let expected = [
+            "LIST ALL PERMISSIONS",
+            "LIST ALL PERMISSIONS ON TABLE 'keyspace'.table OF role",
+            "LIST ALL PERMISSIONS ON TABLE 'keyspace'.table OF role",
+            "LIST ALTER ON TABLE 'keyspace'.table OF role",
+            "LIST AUTHORIZE ON TABLE 'keyspace'.table OF role",
+            "LIST DESCRIBE ON TABLE 'keyspace'.table OF role",
+            "LIST EXECUTE ON TABLE 'keyspace'.table OF role",
+            "LIST CREATE ON TABLE 'keyspace'.table OF role",
+            "LIST DROP ON TABLE 'keyspace'.table OF role",
+            "LIST MODIFY ON TABLE 'keyspace'.table OF role",
+            "LIST SELECT ON TABLE 'keyspace'.table OF role",
+            "LIST ALL PERMISSIONS ON ALL FUNCTIONS OF role",
+            "LIST ALL PERMISSIONS ON ALL FUNCTIONS IN KEYSPACE keyspace OF role",
+            "LIST ALL PERMISSIONS ON ALL KEYSPACES OF role",
+            "LIST ALL PERMISSIONS ON ALL ROLES OF role",
+            "LIST ALL PERMISSIONS ON FUNCTION 'keyspace'.function OF role",
+            "LIST ALL PERMISSIONS ON FUNCTION 'function' OF role",
+            "LIST ALL PERMISSIONS ON KEYSPACE 'keyspace' OF role",
+            "LIST ALL PERMISSIONS ON ROLE 'role' OF role",
+            "LIST ALL PERMISSIONS ON TABLE 'keyspace'.table OF role",
+            "LIST ALL PERMISSIONS ON TABLE 'table' OF role",
+            "LIST ALL PERMISSIONS ON TABLE 'table' OF role",
         ];
         test_parsing(&expected, &stmts);
     }
