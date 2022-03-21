@@ -2196,50 +2196,6 @@ impl CassandraAST {
     }
 }
 
-/// The SearchPattern object used for string pattern matching
-pub struct SearchPattern {
-    /// the plain text version of the name to search for.
-    pub name_str: String,
-    /// the regex version of the name to search for.
-    pub name: Regex,
-    /// the plain text version of  the child name to search for
-    pub child_str: Option<String>,
-    /// the regex version of the child name to search for.
-    pub child: Option<Regex>,
-}
-
-impl SearchPattern {
-    /// Creates a SearchPattern from a string.
-    ///
-    /// The string is a series of names separated by slashes
-    /// (e.g. ` foo / bar` )  This will match all `bar`s somewhere under
-    /// `foo`.
-    /// The string is a regular expression so `foo|bar` will match either 'foo' or 'bar'.
-    ///
-    /// There is a child pattern (also a regular expression) that will verify if a node has
-    /// the child but still return the node.  (e.g. `foo[bar]` will return all `foo` nodes
-    /// that have a `bar` somewhere below them.
-    pub fn from_str(pattern: &str) -> SearchPattern {
-        let parts: Vec<&str> = pattern.split("[").collect();
-        let name_pattern = format!("^{}$", parts[0].trim());
-        let child_pattern = if parts.len() == 2 {
-            let name: Vec<&str> = parts[1].split("]").collect();
-            Some(format!("^{}$", name[0].trim()))
-        } else {
-            None
-        };
-        SearchPattern {
-            name_str: name_pattern.clone(),
-            name: Regex::new(name_pattern.as_str()).unwrap(),
-            child: match &child_pattern {
-                Some(pattern) => Some(Regex::new(pattern.as_str()).unwrap()),
-                None => None,
-            },
-            child_str: child_pattern,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::cassandra_ast::{CassandraAST, CassandraStatement};
