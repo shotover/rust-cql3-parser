@@ -1,0 +1,25 @@
+[package]
+name = "rust_cql3_parser"
+version = "0.0.1"
+authors = ["Claude <claude.warren@instaclustr.com>"]
+edition = "2021"
+rust-version = "1.56"
+license = "Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+
+
+[dependencies]
+itertools = "0.10.1"
+regex = "1"
+
+
+# Parsers
+tree-sitter = "0.20.5"
+tree-sitter-cql = { git = "https://github.com/Claude-at-Instaclustr/tree-sitter-cql", brach="main" }
+
+
+[dev-dependencies]
+
