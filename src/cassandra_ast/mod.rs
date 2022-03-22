@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use regex::Regex;
 use std::fmt::{Display, Formatter};
+use std::ops::Index;
 use tree_sitter::{Node, Tree, TreeCursor};
 
 #[derive(PartialEq, Debug, Clone)]
@@ -8,17 +9,17 @@ pub enum CassandraStatement {
     AlterKeyspace(KeyspaceData),
     AlterMaterializedView,
     AlterRole(RoleData),
-    AlterTable,
+    AlterTable(AlterTableData),
     AlterType,
     AlterUser(UserData),
     ApplyBatch,
     CreateAggregate,
     CreateFunction,
-    CreateIndex,
+    CreateIndex(IndexData),
     CreateKeyspace(KeyspaceData),
     CreateMaterializedView,
     CreateRole(RoleData),
-    CreateTable,
+    CreateTable(CreateTableData),
     CreateTrigger,
     CreateType,
     CreateUser(UserData),
@@ -472,7 +473,7 @@ impl ToString for SelectStatementData {
             );
         }
         if self.order.is_some() {
-            result.push_str(format!("{}", self.order.as_ref().unwrap()).as_str());
+            result.push_str(format!(" ORDER BY {}", self.order.as_ref().unwrap()).as_str());
         }
         if self.modifiers.limit.is_some() {
             result.push_str(format!(" LIMIT {}", self.modifiers.limit.unwrap()).as_str());
@@ -536,7 +537,7 @@ impl Display for OrderClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            " ORDER BY {} {}",
+            "{} {}",
             self.name,
             if self.desc { "DESC" } else { "ASC" }
         )
@@ -642,6 +643,250 @@ impl StatementModifiers {
     }
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub struct AlterTableData {
+    name: String,
+    operation: AlterTableOperation,
+}
+
+#[derive(PartialEq, Debug, Clone)]
+enum AlterTableOperation {
+    Add(Vec<ColumnDefinition>),
+    DropColumns(Vec<String>),
+    DropCompactStorage,
+    Rename((String,String)),
+    With(WithElement)
+}
+
+impl Display for AlterTableOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AlterTableOperation::Add(columns) => write!(f, "ADD {}", columns.iter().map(|x| x.to_string()).join( ", ")),
+            AlterTableOperation::DropColumns(columns) => write!(f, "DROP {}", columns.join( ", ")),
+            AlterTableOperation::DropCompactStorage => write!(f, "DROP COMPACT STORAGE" ),
+            AlterTableOperation::Rename((from,to)) => write!(f, "RENAME {} TO {}", from,to),
+            AlterTableOperation::With(withElement) => write!(f, "WITH {}", withElement.iter().map(|x| x.to_string()).join( " AND ") )
+        }
+    }
+}
+
+
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct CreateTableData {
+    if_not_exists: bool,
+    name: String,
+    columns: Vec<ColumnDefinition>,
+    key : Option<PrimaryKey>,
+    with: WithElement,
+}
+
+impl Display for CreateTableData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut v : Vec<String> = self.columns.iter().map( |x| x.to_string() ).collect();
+        if self.key.is_some() {
+            v.push( self.key.as_ref().unwrap().to_string());
+        }
+        write!( f, "{}{} ({}){}",
+            if self.if_not_exists {"IF NOT EXISTS ".to_string()} else {"".to_string()},
+            self.name,
+            v.join( ", "),
+            if !self.with.is_empty() {
+                format!( " WITH {}",
+                self.with.iter().map( |x| x.to_string() ).join(" AND "))
+            } else {"".to_string()}
+        )
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct ColumnDefinition {
+    name: String,
+    data_type: DataType,
+    primary_key: bool,
+}
+
+impl Display for ColumnDefinition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}{}", self.name, self.data_type,
+        if self.primary_key { " PRIMARY KEY"} else {""}
+        )
+    }
+}
+#[derive(PartialEq, Debug, Clone)]
+pub struct DataType {
+    name : DataTypeName,
+    definition : Vec<DataTypeName>,
+}
+
+impl Display for DataType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.definition.is_empty() {
+            write!(f, "{}", self.name )
+        } else {
+            write!(f, "{}<{}>", self.name, self.definition.iter().join(", "))
+        }
+    }
+}
+#[derive(PartialEq, Debug, Clone)]
+pub enum DataTypeName {
+    TIMESTAMP,
+    SET,
+    ASCII,
+    BIGINT,
+    BLOB,
+    BOOLEAN,
+    COUNTER,
+    DATE,
+    DECIMAL,
+    DOUBLE,
+    FLOAT,
+    FROZEN,
+    INET,
+    INT,
+    LIST,
+    MAP,
+    SMALLINT,
+    TEXT,
+    TIME,
+    TIMEUUID,
+    TINYINT,
+    TUPLE,
+    VARCHAR,
+    VARINT,
+    UUID,
+    CUSTOM(String),
+}
+
+impl Display for DataTypeName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DataTypeName::TIMESTAMP => write!(f, "TIMESTAMP"),
+            DataTypeName::SET => write!(f, "SET"),
+            DataTypeName::ASCII => write!(f, "ASCII"),
+            DataTypeName::BIGINT => write!(f, "BIGINT"),
+            DataTypeName::BLOB => write!(f, "BLOB"),
+            DataTypeName::BOOLEAN => write!(f, "BOOLEAN"),
+            DataTypeName::COUNTER => write!(f, "COUNTER"),
+            DataTypeName::DATE => write!(f, "DATE"),
+            DataTypeName::DECIMAL => write!(f, "DECIMAL"),
+            DataTypeName::DOUBLE => write!(f, "DOUBLE"),
+            DataTypeName::FLOAT => write!(f, "FLOAT"),
+            DataTypeName::FROZEN => write!(f, "FROZEN"),
+            DataTypeName::INET => write!(f, "INET"),
+            DataTypeName::INT => write!(f, "INT"),
+            DataTypeName::LIST => write!(f, "LIST"),
+            DataTypeName::MAP => write!(f, "MAP"),
+            DataTypeName::SMALLINT => write!(f, "SMALLINT"),
+            DataTypeName::TEXT => write!(f, "TEXT"),
+            DataTypeName::TIME => write!(f, "TIME"),
+            DataTypeName::TIMEUUID => write!(f, "TIMEUUID"),
+            DataTypeName::TINYINT => write!(f, "TINYINT"),
+            DataTypeName::TUPLE => write!(f, "TUPLE"),
+            DataTypeName::VARCHAR => write!(f, "VARCHAR"),
+            DataTypeName::VARINT => write!(f, "VARINT"),
+            DataTypeName::UUID => write!(f, "UUID"),
+            DataTypeName::CUSTOM(name) => write!(f, "{}", name),
+        }
+    }
+}
+impl DataTypeName {
+    pub fn from( name : &str ) -> DataTypeName {
+        match name.to_uppercase().as_str() {
+            "ASCII" => DataTypeName::ASCII,
+            "BIGINT" => DataTypeName::BIGINT,
+            "BLOB" => DataTypeName::BLOB,
+            "BOOLEAN" => DataTypeName::BOOLEAN,
+            "COUNTER" => DataTypeName::COUNTER,
+            "DATE" => DataTypeName::DATE,
+            "DECIMAL" => DataTypeName::DECIMAL,
+            "DOUBLE" => DataTypeName::DOUBLE,
+            "FLOAT" => DataTypeName::FLOAT,
+            "FROZEN" => DataTypeName::FROZEN,
+            "INET" => DataTypeName::INET,
+            "INT" => DataTypeName::INT,
+            "LIST" => DataTypeName::LIST,
+            "MAP" => DataTypeName::MAP,
+            "SET" => DataTypeName::SET,
+            "SMALLINT" => DataTypeName::SMALLINT,
+            "TEXT" => DataTypeName::TEXT,
+            "TIME" => DataTypeName::TIME,
+            "TIMESTAMP" => DataTypeName::TIMESTAMP,
+            "TIMEUUID" => DataTypeName::TIMEUUID,
+            "TINYINT" => DataTypeName::TINYINT,
+            "TUPLE" => DataTypeName::TUPLE,
+            "UUID" => DataTypeName::UUID,
+            "VARCHAR" => DataTypeName::VARCHAR,
+            "VARINT" => DataTypeName::VARINT,
+            _ => DataTypeName::CUSTOM( name.to_string() ),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct PrimaryKey {
+    partition: Vec<String>,
+    clustering: Vec<String>,
+}
+
+impl Display for PrimaryKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.partition.is_empty() && self.clustering.is_empty() {
+            write!(f, "" )
+        } else {
+            if self.partition.len() == 1 {
+                if self.clustering.is_empty() {
+                    write!(f, "PRIMARY KEY ({})", self.partition.get(0).unwrap())
+                } else {
+                    write!(f, "PRIMARY KEY ({}, {})", self.partition.get(0).unwrap(),
+                           self.clustering.join(", "))
+                }
+            } else {
+                write!(f, "PRIMARY KEY (({}), {})", self.partition.join(", "),
+                       self.clustering.join(", "))
+            }
+        }
+    }
+}
+
+pub type WithElement = Vec<WithItem>;
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum WithItem {
+    Option{ key : String, value : OptionValue },
+    ClusterOrder( OrderClause),
+    ID(String),
+    CompactStorage,
+}
+
+impl Display for WithItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WithItem::Option { key, value } => write!(f, "{} = {}", key, value),
+            WithItem::ClusterOrder( order ) => write!(f, "CLUSTERING ORDER BY ({})", order),
+            WithItem::ID(txt) => write!(f, "ID = {}", txt),
+            WithItem::CompactStorage => write!(f, "COMPACT STORAGE"),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum OptionValue {
+    Literal(String),
+    Hash(Vec<(String,String)>),
+}
+
+impl Display for OptionValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OptionValue::Literal(txt) => write!( f, "{}", txt ),
+            OptionValue::Hash(items) => write!( f, "{{{}}}", items.iter()
+                .map( |(x,y)| format!( "{}:{}", x,y) )
+                .join( ", ")
+            ),
+        }
+    }
+}
 #[derive(PartialEq, Debug, Clone)]
 pub struct RoleData {
     name: String,
@@ -849,9 +1094,6 @@ impl CassandraStatement {
     }
 
     pub fn from_node(node: &Node, source: &String) -> CassandraStatement {
-        if node.has_error() {
-            return CassandraStatement::UNKNOWN(source.clone());
-        }
         match node.kind() {
             "alter_keyspace" => CassandraStatement::AlterKeyspace(
                 CassandraParser::parse_keyspace_data(node, source),
@@ -860,7 +1102,7 @@ impl CassandraStatement {
             "alter_role" => {
                 CassandraStatement::AlterRole(CassandraParser::parse_role_data(node, source))
             }
-            "alter_table" => CassandraStatement::AlterTable,
+            "alter_table" => CassandraStatement::AlterTable(CassandraParser::parse_alter_table(node, source)),
             "alter_type" => CassandraStatement::AlterType,
             "alter_user" => {
                 CassandraStatement::AlterUser(CassandraParser::parse_user_data(node, source))
@@ -868,7 +1110,7 @@ impl CassandraStatement {
             "apply_batch" => CassandraStatement::ApplyBatch,
             "create_aggregate" => CassandraStatement::CreateAggregate,
             "create_function" => CassandraStatement::CreateFunction,
-            "create_index" => CassandraStatement::CreateIndex,
+            "create_index" => CassandraStatement::CreateIndex(CassandraParser::parse_index_data( node, source )),
             "create_keyspace" => CassandraStatement::CreateKeyspace(
                 CassandraParser::parse_keyspace_data(node, source),
             ),
@@ -876,7 +1118,7 @@ impl CassandraStatement {
             "create_role" => {
                 CassandraStatement::CreateRole(CassandraParser::parse_role_data(node, source))
             }
-            "create_table" => CassandraStatement::CreateTable,
+            "create_table" => CassandraStatement::CreateTable(CassandraParser::parse_create_table(node, source)),
             "create_trigger" => CassandraStatement::CreateTrigger,
             "create_type" => CassandraStatement::CreateType,
             "create_user" => {
@@ -950,7 +1192,7 @@ impl CassandraStatement {
                     )
                 }
             }
-            _ => CassandraStatement::UNKNOWN(node.kind().to_string()),
+            _ => CassandraStatement::UNKNOWN(source.clone()),
         }
     }
 }
@@ -958,11 +1200,329 @@ impl CassandraStatement {
 struct CassandraParser {}
 impl CassandraParser {
 
+    fn parse_alter_table_operation(node: &Node, source: &String) -> AlterTableOperation {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        match cursor.node().kind() {
+            "alter_table_add" => {
+                let mut columns: Vec<ColumnDefinition> =vec!();
+                cursor.goto_first_child();
+                // consume 'ADD'
+                while cursor.goto_next_sibling() {
+                    if cursor.node().kind().eq("alter_table_column_definition") {
+                        columns.push(CassandraParser::parse_column_definition(&cursor.node(), source));
+                    }
+                }
+                AlterTableOperation::Add( columns )
+            },
+           "alter_table_drop_columns" => {
+               cursor.goto_first_child();
+               let mut columns : Vec<String> = vec!();
+               // consume 'DROP'
+               while cursor.goto_next_sibling() {
+                   if cursor.node().kind().eq("object_name") {
+                       columns.push( NodeFuncs::as_string(&cursor.node(), source) );
+                   }
+               }
+               AlterTableOperation::DropColumns( columns )
+           },
+            "alter_table_drop_compact_storage" => AlterTableOperation::DropCompactStorage,
+            "alter_table_rename" => {
+                cursor.goto_first_child();
+                // consume the 'FROM'
+                cursor.goto_next_sibling();
+                let from = NodeFuncs::as_string(&cursor.node(), source);
+                cursor.goto_next_sibling();
+                // consume the 'TO'
+                cursor.goto_next_sibling();
+                let to = NodeFuncs::as_string(&cursor.node(), source);
+                AlterTableOperation::Rename((from, to))
+            },
+            "alter_table_with" => AlterTableOperation::With(CassandraParser::parse_with_element( &cursor.node(), source)),
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_alter_table(node: &Node, source: &String) -> AlterTableData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // consume 'ALTER'
+        cursor.goto_next_sibling();
+        // consume 'TABLE'
+        cursor.goto_next_sibling();
+        // get the name
+        AlterTableData {
+            name : CassandraParser::parse_table_name( &cursor.node(), source),
+            operation: {
+                cursor.goto_next_sibling();
+                CassandraParser::parse_alter_table_operation( &cursor.node(), source)
+            },
+        }
+
+    }
+    fn parse_primary_key_element(node: &Node, source: &String) -> PrimaryKey {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        let mut primary_key = PrimaryKey {
+            partition: vec![],
+            clustering: vec![]
+        };
+        while cursor.goto_next_sibling()  {
+            if cursor.node().kind().eq( "primary_key_definition") {
+                cursor.goto_first_child();
+                match cursor.node().kind() {
+                    "compound_key" => {
+                        cursor.goto_first_child();
+                        primary_key.partition.push( NodeFuncs::as_string( &cursor.node(), source ));
+                        cursor.goto_next_sibling();
+                        // consume the ','
+                        cursor.goto_next_sibling();
+                        // enter the clustering-key-list
+                        let mut process = cursor.goto_first_child();
+                        while process {
+                            if ! cursor.node().kind().eq(",") {
+                                primary_key.clustering.push(NodeFuncs::as_string( &cursor.node(), source ));
+                            }
+                            process = cursor.goto_next_sibling();
+                        }
+                    },
+                    "composite_key" => {
+                        cursor.goto_first_child();
+                        let mut process = true;
+                        while process {
+                            match cursor.node().kind() {
+                                "partition_key_list" => {
+                                    cursor.goto_first_child();
+                                    while process {
+                                        if cursor.node().kind().eq("object_name") {
+                                            primary_key.partition.push(NodeFuncs::as_string(&cursor.node(), source));
+                                        }
+                                        process = cursor.goto_next_sibling();
+                                    }
+                                    process = true;
+                                    cursor.goto_parent();
+                                },
+                                "clustering_key_list" => {
+                                    cursor.goto_first_child();
+                                    while process {
+                                        if cursor.node().kind().eq("object_name") {
+                                            primary_key.clustering.push(NodeFuncs::as_string(&cursor.node(), source));
+                                        }
+                                        process = cursor.goto_next_sibling();
+                                    }
+                                    cursor.goto_parent();
+                                },
+                                _ => {}
+
+                            }
+                            process = cursor.goto_next_sibling();
+                        }
+                    },
+                    _ => primary_key.partition.push( NodeFuncs::as_string( &cursor.node(), source )),
+                }
+            }
+        }
+        primary_key
+    }
+    fn parse_data_type(node: &Node, source: &String) -> DataType {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // extracting the name works because it is limited to a single child item so the text is correct
+        let mut result = DataType {
+            name: DataTypeName::from( NodeFuncs::as_string( &cursor.node(), source ).as_str()),
+            definition: vec![]
+        };
+
+        if cursor.goto_next_sibling() {
+            cursor.goto_first_child();
+            // consume the '<'
+            while cursor.goto_next_sibling() {
+                let kind = cursor.node().kind();
+                if ! (kind.eq(",") || kind.eq(">")) {
+                    result.definition.push( DataTypeName::from( NodeFuncs::as_string( &cursor.node(), source ).as_str()));
+                }
+            }
+        }
+        result
+    }
+    fn parse_column_definition(node: &Node, source: &String) -> ColumnDefinition {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        ColumnDefinition{
+            name: NodeFuncs::as_string( &cursor.node(), source ),
+            data_type: {
+                cursor.goto_next_sibling();
+                CassandraParser::parse_data_type( &cursor.node(), source )
+            },
+            primary_key: cursor.goto_next_sibling()
+        }
+    }
+
+    fn parse_table_options(node: &Node, source: &String) -> Vec<WithItem> {
+        let mut cursor = node.walk();
+        let mut process = cursor.goto_first_child();
+        let mut result :Vec<(WithItem)> = vec!();
+        while process {
+            match cursor.node().kind() {
+                "table_option_item" => {
+                    cursor.goto_first_child();
+                    let key = NodeFuncs::as_string(&cursor.node(), source);
+                    cursor.goto_next_sibling();
+                    // consume the '='
+                    cursor.goto_next_sibling();
+                    //
+                    if cursor.node().kind().eq("table_option_value") {
+                        if key.to_uppercase().eq("ID") {
+                            result.push(WithItem::ID(NodeFuncs::as_string(&cursor.node(), source)));
+                        } else {
+                            result.push(WithItem::Option { key, value: OptionValue::Literal(NodeFuncs::as_string(&cursor.node(), source)) });
+                        }
+                    } else if cursor.node().kind().eq("option_hash") {
+                        result.push(WithItem::Option { key, value: OptionValue::Hash(CassandraParser::parse_map(&cursor.node(), source)) });
+                    }
+                    cursor.goto_parent();
+                },
+                "clustering_order" => {
+                    cursor.goto_first_child();
+                    // consume CLUSTERING
+                    cursor.goto_next_sibling();
+                    // consume ORDER
+                    cursor.goto_next_sibling();
+                    // consume BY
+                    cursor.goto_next_sibling();
+                    // consume '('
+                    cursor.goto_next_sibling();
+                    result.push(WithItem::ClusterOrder(OrderClause {
+                        name: NodeFuncs::as_string(&cursor.node(), &source),
+                        desc: {
+                            // consume the name
+                            if cursor.goto_next_sibling() {
+                                cursor.node().kind().eq("DESC")
+                            } else {
+                                false
+                            }
+                        },
+                    }));
+                    cursor.goto_parent();
+                },
+                "compact_storage" => result.push(WithItem::CompactStorage),
+                _ => {},
+            }
+            process = cursor.goto_next_sibling();
+        }
+        result
+    }
+
+    fn parse_create_table(node: &Node, source: &String) -> CreateTableData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        let mut result = CreateTableData {
+            if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
+            name: {
+                cursor.goto_first_child();
+                CassandraParser::parse_dotted_name(&mut cursor, source)
+            },
+            columns: vec!(),
+            key: None,
+            with: vec!(),
+        };
+        cursor.goto_parent();
+        while cursor.goto_next_sibling() {
+            match cursor.node().kind() {
+                "column_definition_list" => {
+                    let mut process = cursor.goto_first_child();
+
+                    while process {
+                        if cursor.node().kind().eq( "column_definition") {
+                            result.columns.push( CassandraParser::parse_column_definition( &cursor.node(), source) )
+                        }
+                        if cursor.node().kind().eq( "primary_key_element") {
+                            result.key = Some(CassandraParser::parse_primary_key_element(  &cursor.node(), source));
+                        }
+                        process = cursor.goto_next_sibling();
+                    }
+                    cursor.goto_parent();
+                },
+                "with_element" => {
+                    result.with = CassandraParser::parse_with_element( &cursor.node(), source);
+                }
+                _ => {}
+            }
+        }
+        result
+    }
+
+    fn parse_with_element(node: &Node, source: &String) -> WithElement {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        while cursor.goto_next_sibling() {
+            if cursor.node().kind().eq( "table_options") {
+                return CassandraParser::parse_table_options( &cursor.node(), source);
+            }
+        }
+        vec!()
+    }
+    fn parse_index_data(node: &Node, source: &String) -> IndexData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        let mut result = IndexData{
+            if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists( &mut cursor ),
+            name: None,
+            table: "".to_string(),
+            column: IndexColumnType::COLUMN("".to_string()),
+        };
+        let mut process = true;
+        while process {
+            match cursor.node().kind() {
+                "index_name" => {
+                    cursor.goto_first_child();
+                    result.name = Some( NodeFuncs::as_string( &cursor.node(), source ));
+                    cursor.goto_parent();
+                },
+                "table_name" => {
+                    cursor.goto_first_child();
+                    result.table = CassandraParser::parse_dotted_name( &mut cursor, source );
+                    cursor.goto_parent();
+                },
+                "index_column_spec" => {
+                    cursor.goto_first_child();
+                    result.column = match cursor.node().kind() {
+                        "index_keys_spec" => {
+                            cursor.goto_first_child();
+                            cursor.goto_next_sibling();
+                            // consume '('
+                            cursor.goto_next_sibling();
+                            IndexColumnType::KEYS( NodeFuncs::as_string(&cursor.node(), source))
+                        },
+                        "index_entries_s_spec" => {
+                            cursor.goto_first_child();
+                            cursor.goto_next_sibling();
+                            // consume '('
+                            cursor.goto_next_sibling();
+                            IndexColumnType::ENTRIES( NodeFuncs::as_string(&cursor.node(), source))
+                        },
+                        "index_full_spec" => {                            cursor.goto_next_sibling();
+                            // consume '('
+                            cursor.goto_first_child();
+                            cursor.goto_next_sibling();
+                            // consume '('
+                            cursor.goto_next_sibling();
+                            IndexColumnType::FULL( NodeFuncs::as_string(&cursor.node(), source))
+                        },
+                        _ => IndexColumnType::COLUMN( NodeFuncs::as_string(&cursor.node(), source)),
+                    };
+                    cursor.goto_parent();
+                },
+                _ => {}
+            }
+            process = cursor.goto_next_sibling();
+        }
+    result
+
+    }
     fn parse_list_role_data(node: &Node, source: &String) -> ListRoleData {
         let mut cursor = node.walk();
         let mut result = ListRoleData{ of: None, no_recurse: false };
-        let kind = cursor.node().kind();
-
         cursor.goto_first_child();
         // consume 'LIST'
         cursor.goto_next_sibling();
@@ -1024,7 +1584,7 @@ impl CassandraParser {
     fn parse_role_data(node: &Node, source: &String) -> RoleData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        let mut if_not_exists = CassandraParser::consume_alter_create(&mut cursor);
+        let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
         let mut result = RoleData {
             name: NodeFuncs::as_string(&cursor.node(), source),
             password: None,
@@ -1083,11 +1643,11 @@ impl CassandraParser {
         result
     }
 
-    fn consume_alter_create(cursor: &mut TreeCursor) -> bool {
+    fn consume_2_keywords_and_check_not_exists(cursor: &mut TreeCursor) -> bool {
         let mut if_not_exists = false;
-        // consume 'ALTER/CREATE'
+        // consume first keyword
         cursor.goto_next_sibling();
-        // consume 'type'
+        // consume second keyword
         cursor.goto_next_sibling();
         if cursor.node().kind().eq("IF") {
             // consume 'IF'
@@ -1103,7 +1663,7 @@ impl CassandraParser {
     fn parse_keyspace_data(node: &Node, source: &String) -> KeyspaceData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        let if_not_exists = CassandraParser::consume_alter_create(&mut cursor);
+        let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
         let mut result = KeyspaceData {
             name: NodeFuncs::as_string(&cursor.node(), source),
             replication: vec![],
@@ -1133,7 +1693,7 @@ impl CassandraParser {
     fn parse_user_data(node: &Node, source: &String) -> UserData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        let if_not_exists = CassandraParser::consume_alter_create(&mut cursor);
+        let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
 
         let mut result = UserData {
             name: NodeFuncs::as_string(&cursor.node(), source),
@@ -1171,16 +1731,6 @@ impl CassandraParser {
     }
 
     pub fn build_update_statement(node: &Node, source: &String) -> UpdateStatementData {
-        /*
-        optional( $.begin_batch),
-               kw( "UPDATE"),
-               dotted_name( $.object_name, $.object_name, "table"),
-               optional( $.using_ttl_timestamp),
-               kw( "SET"),
-               commaSep1( $.assignment_element),
-               $.where_spec,
-               optional( choice( if_exists, $.if_spec))
-        */
         let mut statement_data = UpdateStatementData {
             begin_batch: None,
             modifiers: StatementModifiers::new(),
@@ -1308,15 +1858,6 @@ impl CassandraParser {
     }
 
     pub fn build_delete_statement(node: &Node, source: &String) -> DeleteStatementData {
-        /*
-               optional( $.begin_batch ),
-               kw("DELETE"),
-               optional( $.delete_column_list ),
-               $.from_spec,
-               optional( $.using_timestamp_spec),
-               $.where_spec,
-               optional( choice( if_exists, $.if_spec))
-        */
         let mut statement_data = DeleteStatementData {
             begin_batch: None,
             modifiers: StatementModifiers::new(),
@@ -1433,16 +1974,6 @@ impl CassandraParser {
     }
 
     pub fn build_insert_statement(node: &Node, source: &String) -> InsertStatementData {
-        /*
-        optional( $.begin_batch),
-               kw("INSERT"),
-               kw("INTO"),
-               $.table_name,
-               optional( $.insert_column_spec ),
-               $.insert_values_spec,
-               optional( if_not_exists ),
-               optional( $.using_ttl_timestamp )
-        */
         let mut statement_data = InsertStatementData {
             begin_batch: None,
             modifiers: StatementModifiers::new(),
@@ -1516,7 +2047,6 @@ impl CassandraParser {
         statement_data
     }
 
-    // on column_list
     fn parse_column_list(node: &Node, source: &String) -> Vec<String> {
         let mut result: Vec<String> = vec![];
         let mut cursor = node.walk();
@@ -1652,11 +2182,6 @@ impl CassandraParser {
 
     // parses lists of option_hash_item or replication_list_item
     fn parse_map(node: &Node, source: &String) -> Vec<(String, String)> {
-        /*
-               option_hash : $ => seq( "{", commaSep1( $.option_hash_item), "}"),
-        option_hash_item : $ => seq( alias($._string_literal,"property"), ":", alias( choice( $._string_literal, $._float_literal), "value"), ),
-
-         */
         let mut cursor = node.walk();
 
         cursor.goto_first_child();
@@ -1776,19 +2301,6 @@ impl CassandraParser {
     }
 
     pub fn build_select_statement(node: &Node, source: &String) -> SelectStatementData {
-        /*
-        seq(
-                kw("SELECT"),
-                optional( kw("DISTINCT")),
-                optional( kw("JSON") ),
-                $.select_elements,
-                $.from_spec,
-                optional($.where_spec),
-                optional($.order_spec),
-                optional($.limit_spec ),
-                optional(seq( kw("ALLOW"), kw("FILTERING"))),
-            ),
-         */
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
@@ -2076,19 +2588,19 @@ impl ToString for CassandraStatement {
             CassandraStatement::AlterKeyspace(keyspace_data) => format!("ALTER {}", keyspace_data),
             CassandraStatement::AlterMaterializedView => unimplemented,
             CassandraStatement::AlterRole(role_data) => format!("ALTER {}", role_data),
-            CassandraStatement::AlterTable => unimplemented,
+            CassandraStatement::AlterTable(table_data) => format!( "ALTER TABLE {} {}", table_data.name, table_data.operation ),
             CassandraStatement::AlterType => unimplemented,
             CassandraStatement::AlterUser(user_data) => format!("ALTER {}", user_data),
             CassandraStatement::ApplyBatch => String::from("APPLY BATCH"),
             CassandraStatement::CreateAggregate => unimplemented,
             CassandraStatement::CreateFunction => unimplemented,
-            CassandraStatement::CreateIndex => unimplemented,
+            CassandraStatement::CreateIndex(index_data) => index_data.to_string(),
             CassandraStatement::CreateKeyspace(keyspace_data) => {
                 format!("CREATE {}", keyspace_data)
             }
             CassandraStatement::CreateMaterializedView => unimplemented,
             CassandraStatement::CreateRole(role_data) => format!("CREATE {}", role_data),
-            CassandraStatement::CreateTable => unimplemented,
+            CassandraStatement::CreateTable(table_data) => format!("CREATE TABLE {}", table_data),
             CassandraStatement::CreateTrigger => unimplemented,
             CassandraStatement::CreateType => unimplemented,
             CassandraStatement::CreateUser(user_data) => format!("CREATE {}", user_data),
@@ -2125,11 +2637,48 @@ impl ToString for CassandraStatement {
             CassandraStatement::Truncate(table) => format!("TRUNCATE TABLE {}", table).to_string(),
             CassandraStatement::Update(statement_data) => statement_data.to_string(),
             CassandraStatement::UseStatement(keyspace) => format!("USE {}", keyspace).to_string(),
-            CassandraStatement::UNKNOWN(_) => unimplemented,
+            CassandraStatement::UNKNOWN(query) => query.clone(),
         }
     }
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub enum IndexColumnType {
+    COLUMN(String),
+    KEYS(String),
+    ENTRIES(String),
+    FULL(String),
+}
+
+impl Display for IndexColumnType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IndexColumnType::COLUMN(name) => write!(f,"{}", name),
+            IndexColumnType::KEYS(name) => write!(f, "KEYS( {} )", name),
+            IndexColumnType::ENTRIES(name) => write!(f, "ENTRIES( {} )", name),
+            IndexColumnType::FULL(name) => write!(f, "FULL( {} )", name),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct IndexData {
+    if_not_exists: bool,
+    name: Option<String>,
+    table: String,
+    column: IndexColumnType,
+}
+
+impl Display for IndexData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let name = if self.name.is_some() {
+            format!( "{} ",self.name.as_ref().unwrap().as_str())} else {"".to_string()};
+        let exists = if self.if_not_exists {"IF NOT EXISTS "}else{""};
+
+        write!( f, "CREATE INDEX {}{}ON {}( {} )", exists, name, self.table,self.column)
+    }
+
+}
 #[derive(PartialEq, Debug, Clone)]
 pub enum Privilege {
     ALL,
@@ -2241,6 +2790,7 @@ mod tests {
     fn test_parsing(expected: &[&str], statements: &[&str]) {
         for i in 0..statements.len() {
             let ast = CassandraAST::new(statements[i].to_string());
+            assert!( !ast.has_error(), "AST has error\n{}\n{} ", statements[i], ast.tree.root_node().to_sexp());
             let stmt = ast.statement;
             let stmt_str = stmt.to_string();
             assert_eq!(expected[i], stmt_str);
@@ -2383,7 +2933,7 @@ mod tests {
 
     #[test]
     fn x() {
-        let qry = "ALTER KEYSPACE keyspace WITH REPLICATION = {'foo':'bar', 'baz':5}";
+        let qry = "ALTER TABLE keyspace.table DROP column1, column2";
         let ast = CassandraAST::new(qry.to_string());
         let stmt = ast.statement;
         let stmt_str = stmt.to_string();
@@ -2394,28 +2944,20 @@ mod tests {
     fn test_get_statement_type() {
         let stmts = [
             "ALTER MATERIALIZED VIEW 'keyspace'.mview;",
-            "ALTER TABLE keyspace.table DROP column1, column2;",
             "ALTER TYPE type ALTER column TYPE UUID;",
-            "APPLY BATCH;",
             "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (( 5, 'text', 6.3),(4,'foo',3.14));",
             "CREATE FUNCTION IF NOT EXISTS func ( param1 int , param2 text) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$;",
-            "CREATE INDEX index_name ON keyspace.table (column);",
             "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC);",
-            "CREATE TABLE table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH option = 'option' AND option2 = 3.5;",
             "CREATE TRIGGER if not exists keyspace.trigger_name USING 'trigger_class';",
             "CREATE TYPE type ( col1 'foo');",
             "DROP TRIGGER trigger_name ON ks.table_name;",
             "Not a valid statement"];
         let types = [
             CassandraStatement::AlterMaterializedView,
-            CassandraStatement::AlterTable,
             CassandraStatement::AlterType,
-            CassandraStatement::ApplyBatch,
             CassandraStatement::CreateAggregate,
             CassandraStatement::CreateFunction,
-            CassandraStatement::CreateIndex,
             CassandraStatement::CreateMaterializedView,
-            CassandraStatement::CreateTable,
             CassandraStatement::CreateTrigger,
             CassandraStatement::CreateType,
             CassandraStatement::DropTrigger,
@@ -2750,6 +3292,7 @@ mod tests {
         ];
         let expected = [
             "GRANT ALL PERMISSIONS ON TABLE 'keyspace'.table TO role",
+            "GRANT ALL PERMISSIONS ON TABLE 'keyspace'.table TO role",
             "GRANT ALTER ON TABLE 'keyspace'.table TO role",
             "GRANT AUTHORIZE ON TABLE 'keyspace'.table TO role",
             "GRANT DESCRIBE ON TABLE 'keyspace'.table TO role",
@@ -2890,6 +3433,78 @@ mod tests {
             "LIST ROLES NORECURSIVE",
             "LIST ROLES OF role_name",
             "LIST ROLES OF role_name NORECURSIVE",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_apply_batch() {
+        let stmts = [
+            "Apply Batch;",
+        ];
+        let expected = [
+            "APPLY BATCH",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_index() {
+        let stmts = [
+            "CREATE INDEX index_name ON keyspace.table (column);",
+"CREATE INDEX index_name ON table (column);",
+"CREATE INDEX ON table (column);",
+"CREATE INDEX ON table (keys ( key ) );",
+"CREATE INDEX ON table (entries ( spec ) );",
+"CREATE INDEX ON table (full ( spec ) );",
+        ];
+        let expected = [
+            "CREATE INDEX index_name ON keyspace.table( column )",
+            "CREATE INDEX index_name ON table( column )",
+            "CREATE INDEX ON table( column )",
+            "CREATE INDEX ON table( KEYS( key ) )",
+            "CREATE INDEX ON table( ENTRIES( spec ) )",
+            "CREATE INDEX ON table( FULL( spec ) )",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_table() {
+        let stmts = [
+            "CREATE TABLE IF NOT EXISTS keyspace.table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) );",
+        "CREATE TABLE table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH option = 'option' AND option2 = 3.5;",
+        "CREATE TABLE table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH caching = { 'keys' : 'ALL', 'rows_per_partition' : '100' } AND comment = 'Based on table';",
+        "CREATE TABLE keyspace.table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH CLUSTERING ORDER BY ( col2 )",
+            "CREATE TABLE keyspace.table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH option = 'option' AND option2 = 3.5 AND  CLUSTERING ORDER BY ( col2 )",
+            "CREATE TABLE keyspace.table (col1 text, col2 int, PRIMARY KEY (col1) ) WITH option1='value' AND CLUSTERING ORDER BY ( col2 ) AND ID='someId' AND COMPACT STORAGE",
+        ];
+        let expected = [
+            "CREATE TABLE IF NOT EXISTS keyspace.table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2))",
+            "CREATE TABLE table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2)) WITH option = 'option' AND option2 = 3.5",
+            "CREATE TABLE table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2)) WITH caching = {'keys':'ALL', 'rows_per_partition':'100'} AND comment = 'Based on table'",
+            "CREATE TABLE keyspace.table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2)) WITH CLUSTERING ORDER BY (col2 ASC)",
+            "CREATE TABLE keyspace.table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2)) WITH option = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 ASC)",
+            "CREATE TABLE keyspace.table (col1 TEXT, col2 INT, PRIMARY KEY (col1)) WITH option1 = 'value' AND CLUSTERING ORDER BY (col2 ASC) AND ID = 'someId' AND COMPACT STORAGE",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_alter_table() {
+        let stmts = [
+            "ALTER TABLE keyspace.table ADD column1 UUID, column2 BIGINT;",
+        "ALTER TABLE keyspace.table DROP column1, column2;",
+        "ALTER TABLE keyspace.table DROP COMPACT STORAGE;",
+        "ALTER TABLE keyspace.table RENAME column1 TO column2;",
+        "ALTER TABLE keyspace.table WITH option1 = 'option' AND option2 = 3.5;",
+        ];
+        let expected = [
+            "ALTER TABLE keyspace.table ADD column1 UUID, column2 BIGINT",
+            "ALTER TABLE keyspace.table DROP column1, column2",
+            "ALTER TABLE keyspace.table DROP COMPACT STORAGE",
+            "ALTER TABLE keyspace.table RENAME column1 TO column2",
+            "ALTER TABLE keyspace.table WITH option1 = 'option' AND option2 = 3.5",
         ];
         test_parsing(&expected, &stmts);
     }
