@@ -31,7 +31,7 @@ pub enum CassandraStatement {
     DropMaterializedView(DropData),
     DropRole(DropData),
     DropTable(DropData),
-    DropTrigger,
+    DropTrigger(DropTriggerData),
     DropType(DropData),
     DropUser(DropData),
     Grant(PrivilegeData),
@@ -1057,6 +1057,22 @@ impl Display for UserData {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct DropTriggerData {
+    name: String,
+    table : String,
+    if_exists: bool,
+}
+
+impl Display for DropTriggerData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DROP TRIGGER{} {} ON {}",
+                if self.if_exists {" IF EXISTS"} else {""},
+            self.name, self.table
+        )
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct DropData {
     name: String,
     if_exists: bool,
@@ -1148,7 +1164,7 @@ impl CassandraStatement {
             "drop_table" => {
                 CassandraStatement::DropTable(CassandraParser::parse_standard_drop(&node, source))
             }
-            "drop_trigger" => CassandraStatement::DropTrigger,
+            "drop_trigger" => CassandraStatement::DropTrigger(CassandraParser::parse_drop_trigger(&node, source)),
             "drop_type" => {
                 CassandraStatement::DropType(CassandraParser::parse_standard_drop(&node, source))
             }
@@ -1660,6 +1676,23 @@ impl CassandraParser {
         }
         if_not_exists
     }
+
+    fn consume_2_keywords_and_check_exists(cursor: &mut TreeCursor) -> bool {
+        let mut if_exists = false;
+        // consume first keyword
+        cursor.goto_next_sibling();
+        // consume second keyword
+        cursor.goto_next_sibling();
+        if cursor.node().kind().eq("IF") {
+            // consume 'IF'
+            cursor.goto_next_sibling();
+            // consume 'EXISTS'
+            cursor.goto_next_sibling();
+            if_exists = true;
+        }
+        if_exists
+    }
+
     fn parse_keyspace_data(node: &Node, source: &String) -> KeyspaceData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2578,6 +2611,23 @@ impl CassandraParser {
             if_exists,
         }
     }
+
+    fn parse_drop_trigger(node: &Node, source: &String) -> DropTriggerData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        DropTriggerData {
+            if_exists : CassandraParser::consume_2_keywords_and_check_exists(&mut cursor),
+            name : {
+                CassandraParser::parse_table_name(&cursor.node(), source)
+            },
+            table: {
+                cursor.goto_next_sibling();
+                // consume 'ON'
+                cursor.goto_next_sibling();
+                CassandraParser::parse_table_name( &cursor.node(), source )
+            },
+        }
+    }
 }
 
 impl ToString for CassandraStatement {
@@ -2614,7 +2664,7 @@ impl ToString for CassandraStatement {
             }
             CassandraStatement::DropRole(drop_data) => drop_data.get_text("ROLE"),
             CassandraStatement::DropTable(drop_data) => drop_data.get_text("TABLE"),
-            CassandraStatement::DropTrigger => unimplemented,
+            CassandraStatement::DropTrigger(drop_trigger_data) => drop_trigger_data.to_string(),
             CassandraStatement::DropType(drop_data) => drop_data.get_text("TYPE"),
             CassandraStatement::DropUser(drop_data) => drop_data.get_text("USER"),
             CassandraStatement::Grant(grant_data) => format!("GRANT {} ON {} TO {}", grant_data.privilege, grant_data.resource.as_ref().unwrap(), &grant_data.role.as_ref().unwrap()),
@@ -2933,7 +2983,7 @@ mod tests {
 
     #[test]
     fn x() {
-        let qry = "ALTER TABLE keyspace.table DROP column1, column2";
+        let qry = "DROP TRIGGER trigger_name ON table_name";
         let ast = CassandraAST::new(qry.to_string());
         let stmt = ast.statement;
         let stmt_str = stmt.to_string();
@@ -2950,7 +3000,6 @@ mod tests {
             "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC);",
             "CREATE TRIGGER if not exists keyspace.trigger_name USING 'trigger_class';",
             "CREATE TYPE type ( col1 'foo');",
-            "DROP TRIGGER trigger_name ON ks.table_name;",
             "Not a valid statement"];
         let types = [
             CassandraStatement::AlterMaterializedView,
@@ -2960,7 +3009,6 @@ mod tests {
             CassandraStatement::CreateMaterializedView,
             CassandraStatement::CreateTrigger,
             CassandraStatement::CreateType,
-            CassandraStatement::DropTrigger,
             CassandraStatement::UNKNOWN("Not a valid statement".to_string()),
         ];
 
@@ -3505,6 +3553,31 @@ mod tests {
             "ALTER TABLE keyspace.table DROP COMPACT STORAGE",
             "ALTER TABLE keyspace.table RENAME column1 TO column2",
             "ALTER TABLE keyspace.table WITH option1 = 'option' AND option2 = 3.5",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_trigger() {
+        let stmts = [
+            "DROP TRIGGER trigger_name ON table_name;",
+        "DROP TRIGGER trigger_name ON ks.table_name;",
+        "DROP TRIGGER keyspace.trigger_name ON table_name;",
+        "DROP TRIGGER keyspace.trigger_name ON ks.table_name;",
+        "DROP TRIGGER if exists trigger_name ON table_name;",
+        "DROP TRIGGER if exists trigger_name ON ks.table_name;",
+        "DROP TRIGGER if exists keyspace.trigger_name ON table_name;",
+        "DROP TRIGGER if exists keyspace.trigger_name ON ks.table_name;",
+        ];
+        let expected = [
+            "DROP TRIGGER trigger_name ON table_name",
+            "DROP TRIGGER trigger_name ON ks.table_name",
+            "DROP TRIGGER keyspace.trigger_name ON table_name",
+            "DROP TRIGGER keyspace.trigger_name ON ks.table_name",
+            "DROP TRIGGER IF EXISTS trigger_name ON table_name",
+            "DROP TRIGGER IF EXISTS trigger_name ON ks.table_name",
+            "DROP TRIGGER IF EXISTS keyspace.trigger_name ON table_name",
+            "DROP TRIGGER IF EXISTS keyspace.trigger_name ON ks.table_name",
         ];
         test_parsing(&expected, &stmts);
     }
