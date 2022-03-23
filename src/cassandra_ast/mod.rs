@@ -20,8 +20,8 @@ pub enum CassandraStatement {
     CreateMaterializedView,
     CreateRole(RoleData),
     CreateTable(CreateTableData),
-    CreateTrigger,
-    CreateType,
+    CreateTrigger(TriggerData),
+    CreateType(TypeData),
     CreateUser(UserData),
     DeleteStatement(DeleteStatementData),
     DropAggregate(DropData),
@@ -700,6 +700,23 @@ impl Display for CreateTableData {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct TypeData {
+    not_exists : bool,
+    name : String,
+    columns : Vec<ColumnDefinition>,
+}
+
+impl Display for TypeData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CREATE TYPE {}{} ({})",
+        if self.not_exists {"IF NOT EXISTS "} else {""},
+            self.name,
+            self.columns.iter().map( |x| x.to_string()).join(", "),
+        )
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct ColumnDefinition {
     name: String,
     data_type: DataType,
@@ -849,6 +866,21 @@ impl Display for PrimaryKey {
     }
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub struct TriggerData {
+    not_exists : bool,
+    name : String,
+    class : String,
+}
+
+impl Display for TriggerData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!( f, "CREATE TRIGGER {}{} USING {}",
+        if self.not_exists { "IF NOT EXISTS " } else {""},
+            self.name,
+            self.class)
+    }
+}
 pub type WithElement = Vec<WithItem>;
 
 #[derive(PartialEq, Debug, Clone)]
@@ -1135,8 +1167,8 @@ impl CassandraStatement {
                 CassandraStatement::CreateRole(CassandraParser::parse_role_data(node, source))
             }
             "create_table" => CassandraStatement::CreateTable(CassandraParser::parse_create_table(node, source)),
-            "create_trigger" => CassandraStatement::CreateTrigger,
-            "create_type" => CassandraStatement::CreateType,
+            "create_trigger" => CassandraStatement::CreateTrigger(CassandraParser::parse_trigger_data(node, source)),
+            "create_type" => CassandraStatement::CreateType(CassandraParser::parse_type_data(node, source)),
             "create_user" => {
                 CassandraStatement::CreateUser(CassandraParser::parse_user_data(node, source))
             }
@@ -1215,6 +1247,36 @@ impl CassandraStatement {
 
 struct CassandraParser {}
 impl CassandraParser {
+    fn parse_type_data(node: &Node, source: &String) -> TypeData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        let mut result = TypeData {
+            not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
+            name: CassandraParser::parse_table_name(&cursor.node(), source),
+            columns: vec!()
+        };
+        while cursor.goto_next_sibling() {
+            if cursor.node().kind().eq("typed_name") {
+                result.columns.push(CassandraParser::parse_column_definition(&cursor.node(), source));
+            }
+        }
+        result
+    }
+
+    fn parse_trigger_data(node: &Node, source: &String) -> TriggerData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        TriggerData {
+            not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
+            name: CassandraParser::parse_table_name(&cursor.node(), source),
+            class: {
+                cursor.goto_next_sibling();
+                // consume 'USING'
+                cursor.goto_next_sibling();
+                NodeFuncs::as_string(&cursor.node(), source)
+            }
+        }
+    }
 
     fn parse_alter_table_operation(node: &Node, source: &String) -> AlterTableOperation {
         let mut cursor = node.walk();
@@ -2651,8 +2713,8 @@ impl ToString for CassandraStatement {
             CassandraStatement::CreateMaterializedView => unimplemented,
             CassandraStatement::CreateRole(role_data) => format!("CREATE {}", role_data),
             CassandraStatement::CreateTable(table_data) => format!("CREATE TABLE {}", table_data),
-            CassandraStatement::CreateTrigger => unimplemented,
-            CassandraStatement::CreateType => unimplemented,
+            CassandraStatement::CreateTrigger(trigger_data) => trigger_data.to_string(),
+            CassandraStatement::CreateType(type_data) => type_data.to_string(),
             CassandraStatement::CreateUser(user_data) => format!("CREATE {}", user_data),
             CassandraStatement::DeleteStatement(statement_data) => statement_data.to_string(),
             CassandraStatement::DropAggregate(drop_data) => drop_data.get_text("AGGREGATE"),
@@ -2998,8 +3060,6 @@ mod tests {
             "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (( 5, 'text', 6.3),(4,'foo',3.14));",
             "CREATE FUNCTION IF NOT EXISTS func ( param1 int , param2 text) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$;",
             "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC);",
-            "CREATE TRIGGER if not exists keyspace.trigger_name USING 'trigger_class';",
-            "CREATE TYPE type ( col1 'foo');",
             "Not a valid statement"];
         let types = [
             CassandraStatement::AlterMaterializedView,
@@ -3007,8 +3067,6 @@ mod tests {
             CassandraStatement::CreateAggregate,
             CassandraStatement::CreateFunction,
             CassandraStatement::CreateMaterializedView,
-            CassandraStatement::CreateTrigger,
-            CassandraStatement::CreateType,
             CassandraStatement::UNKNOWN("Not a valid statement".to_string()),
         ];
 
@@ -3578,6 +3636,88 @@ mod tests {
             "DROP TRIGGER IF EXISTS trigger_name ON ks.table_name",
             "DROP TRIGGER IF EXISTS keyspace.trigger_name ON table_name",
             "DROP TRIGGER IF EXISTS keyspace.trigger_name ON ks.table_name",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_trigger() {
+        let stmts = [
+            "CREATE TRIGGER trigger_name USING 'trigger_class'",
+        "CREATE TRIGGER if not exists trigger_name USING 'trigger_class'",
+        "CREATE TRIGGER if not exists keyspace.trigger_name USING 'trigger_class'",
+        ];
+        let expected = [
+            "CREATE TRIGGER trigger_name USING 'trigger_class'",
+            "CREATE TRIGGER IF NOT EXISTS trigger_name USING 'trigger_class'",
+            "CREATE TRIGGER IF NOT EXISTS keyspace.trigger_name USING 'trigger_class'",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_type() {
+        let stmts = [
+            "CREATE TYPE if not exists keyspace.type ( 'col1' TIMESTAMP);",
+        "CREATE TYPE if not exists keyspace.type ( col1 SET);",
+        "CREATE TYPE keyspace.type ( col1 ASCII);",
+        "CREATE TYPE keyspace.type ( col1 BIGINT);",
+        "CREATE TYPE keyspace.type ( col1 BLOB);",
+        "CREATE TYPE keyspace.type ( col1 BOOLEAN);",
+        "CREATE TYPE keyspace.type ( col1 COUNTER);",
+        "CREATE TYPE keyspace.type ( col1 DATE);",
+        "CREATE TYPE keyspace.type ( col1 DECIMAL);",
+        "CREATE TYPE keyspace.type ( col1 DOUBLE);",
+        "CREATE TYPE keyspace.type ( col1 FLOAT);",
+        "CREATE TYPE keyspace.type ( col1 FROZEN);",
+        "CREATE TYPE keyspace.type ( col1 INET);",
+        "CREATE TYPE keyspace.type ( col1 INT);",
+        "CREATE TYPE keyspace.type ( col1 LIST);",
+        "CREATE TYPE keyspace.type ( col1 MAP);",
+        "CREATE TYPE keyspace.type ( col1 SMALLINT);",
+        "CREATE TYPE keyspace.type ( col1 TEXT);",
+        "CREATE TYPE type ( col1 TIME);",
+        "CREATE TYPE type ( col1 TIMEUUID);",
+        "CREATE TYPE type ( col1 TINYINT);",
+        "CREATE TYPE type ( col1 TUPLE);",
+        "CREATE TYPE type ( col1 VARCHAR);",
+        "CREATE TYPE type ( col1 VARINT);",
+        "CREATE TYPE type ( col1 TIMESTAMP);",
+        "CREATE TYPE type ( col1 UUID);",
+        "CREATE TYPE type ( col1 'foo');",
+        "CREATE TYPE if not exists keyspace.type ( col1 'foo' < 'subcol1', TIMESTAMP, BLOB > );",
+        "CREATE TYPE type ( col1 UUID, Col2 int);",
+        ];
+        let expected = [
+            "CREATE TYPE IF NOT EXISTS keyspace.type ('col1' TIMESTAMP)",
+            "CREATE TYPE IF NOT EXISTS keyspace.type (col1 SET)",
+            "CREATE TYPE keyspace.type (col1 ASCII)",
+            "CREATE TYPE keyspace.type (col1 BIGINT)",
+            "CREATE TYPE keyspace.type (col1 BLOB)",
+            "CREATE TYPE keyspace.type (col1 BOOLEAN)",
+            "CREATE TYPE keyspace.type (col1 COUNTER)",
+            "CREATE TYPE keyspace.type (col1 DATE)",
+            "CREATE TYPE keyspace.type (col1 DECIMAL)",
+            "CREATE TYPE keyspace.type (col1 DOUBLE)",
+            "CREATE TYPE keyspace.type (col1 FLOAT)",
+            "CREATE TYPE keyspace.type (col1 FROZEN)",
+            "CREATE TYPE keyspace.type (col1 INET)",
+            "CREATE TYPE keyspace.type (col1 INT)",
+            "CREATE TYPE keyspace.type (col1 LIST)",
+            "CREATE TYPE keyspace.type (col1 MAP)",
+            "CREATE TYPE keyspace.type (col1 SMALLINT)",
+            "CREATE TYPE keyspace.type (col1 TEXT)",
+            "CREATE TYPE type (col1 TIME)",
+            "CREATE TYPE type (col1 TIMEUUID)",
+            "CREATE TYPE type (col1 TINYINT)",
+            "CREATE TYPE type (col1 TUPLE)",
+            "CREATE TYPE type (col1 VARCHAR)",
+            "CREATE TYPE type (col1 VARINT)",
+            "CREATE TYPE type (col1 TIMESTAMP)",
+            "CREATE TYPE type (col1 UUID)",
+            "CREATE TYPE type (col1 'foo')",
+            "CREATE TYPE IF NOT EXISTS keyspace.type (col1 'foo'<'subcol1', TIMESTAMP, BLOB>)",
+            "CREATE TYPE type (col1 UUID, Col2 INT)",
         ];
         test_parsing(&expected, &stmts);
     }
