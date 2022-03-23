@@ -1393,7 +1393,7 @@ impl CassandraParser {
                 cursor.goto_first_child();
                 // consume 'ADD'
                 while cursor.goto_next_sibling() {
-                    if cursor.node().kind().eq("alter_table_column_definition") {
+                    if cursor.node().kind().eq("typed_name") {
                         columns.push(CassandraParser::parse_column_definition(&cursor.node(), source));
                     }
                 }
