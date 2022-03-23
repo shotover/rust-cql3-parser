@@ -10,7 +10,7 @@ pub enum CassandraStatement {
     AlterMaterializedView,
     AlterRole(RoleData),
     AlterTable(AlterTableData),
-    AlterType,
+    AlterType(AlterTypeData),
     AlterUser(UserData),
     ApplyBatch,
     CreateAggregate,
@@ -644,6 +644,49 @@ impl StatementModifiers {
 }
 
 #[derive(PartialEq, Debug, Clone)]
+pub struct AlterTypeData {
+    name: String,
+    operation: AlterTypeOperation
+}
+
+impl Display for AlterTypeData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ALTER TYPE {} {}",self.name, self.operation)
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum AlterTypeOperation {
+    AlterColumnType(AlterColumnTypeData),
+    Add(Vec<ColumnDefinition>),
+    Rename(Vec<(String,String)>)
+}
+
+impl Display for AlterTypeOperation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AlterTypeOperation::AlterColumnType(column_type) => write!(f, "{}", column_type),
+            AlterTypeOperation::Add(columns) => write!(f, "ADD {}",
+                                                       columns.iter().map(|x| x.to_string()).join(", ")),
+            AlterTypeOperation::Rename(pairs) => write!(f, "RENAME {}",
+                                                        pairs.iter().map(|(x, y)| format!("{} TO {}", x, y)).join(" AND ")),
+        }
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct AlterColumnTypeData {
+    name: String,
+    data_type : DataType,
+}
+
+impl Display for AlterColumnTypeData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ALTER {} TYPE {}", self.name, self.data_type)
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
 pub struct AlterTableData {
     name: String,
     operation: AlterTableOperation,
@@ -1151,7 +1194,7 @@ impl CassandraStatement {
                 CassandraStatement::AlterRole(CassandraParser::parse_role_data(node, source))
             }
             "alter_table" => CassandraStatement::AlterTable(CassandraParser::parse_alter_table(node, source)),
-            "alter_type" => CassandraStatement::AlterType,
+            "alter_type" => CassandraStatement::AlterType(CassandraParser::parse_alter_type(node, source)),
             "alter_user" => {
                 CassandraStatement::AlterUser(CassandraParser::parse_user_data(node, source))
             }
@@ -1247,6 +1290,69 @@ impl CassandraStatement {
 
 struct CassandraParser {}
 impl CassandraParser {
+    fn parse_alter_type(node: &Node, source: &String) -> AlterTypeData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // consume 'ALTER'
+        cursor.goto_next_sibling();
+        // consume 'TYPE'
+        cursor.goto_next_sibling();
+        AlterTypeData {
+            name: CassandraParser::parse_table_name( &cursor.node(), source ),
+            operation: {
+                cursor.goto_next_sibling();
+                // on 'alter_type_operation'
+                cursor.goto_first_child();
+                match cursor.node().kind() {
+                    "alter_type_alter_type" => {
+                        cursor.goto_first_child();
+                        // consume 'ALTER'
+                        cursor.goto_next_sibling();
+                        AlterTypeOperation::AlterColumnType( AlterColumnTypeData{
+                            name : NodeFuncs::as_string( &cursor.node(), source ),
+                            data_type : {
+                                cursor.goto_next_sibling();
+                                // consume 'TYPE'
+                                cursor.goto_next_sibling();
+                                CassandraParser::parse_data_type( &cursor.node(), source )
+                            },
+                        })
+                    },
+                    "alter_type_add" => {
+                        let mut columns = vec!();
+                        cursor.goto_first_child();
+                        // consume ADD
+                        while cursor.goto_next_sibling() {
+                            if cursor.node().kind().eq("typed_name") {
+                                columns.push(CassandraParser::parse_column_definition(&cursor.node(), source));
+                            }
+                        }
+                        AlterTypeOperation::Add( columns )
+                    }
+                    "alter_type_rename" => {
+                        let mut pairs = vec!();
+                        cursor.goto_first_child();
+                        // consume RENAME
+                        while cursor.goto_next_sibling() {
+                            if cursor.node().kind().eq("alter_type_rename_item") {
+                                cursor.goto_first_child();
+                                let first = NodeFuncs::as_string( &cursor.node(), source );
+                                cursor.goto_next_sibling();
+                                // consume 'TO'
+                                cursor.goto_next_sibling();
+                                let second = NodeFuncs::as_string( &cursor.node(), source );
+                                pairs.push((first,second));
+                                cursor.goto_parent();
+                            }
+                        }
+                        AlterTypeOperation::Rename( pairs )
+                    },
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+
     fn parse_type_data(node: &Node, source: &String) -> TypeData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1439,7 +1545,7 @@ impl CassandraParser {
     fn parse_table_options(node: &Node, source: &String) -> Vec<WithItem> {
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
-        let mut result :Vec<(WithItem)> = vec!();
+        let mut result :Vec<WithItem> = vec!();
         while process {
             match cursor.node().kind() {
                 "table_option_item" => {
@@ -2701,7 +2807,7 @@ impl ToString for CassandraStatement {
             CassandraStatement::AlterMaterializedView => unimplemented,
             CassandraStatement::AlterRole(role_data) => format!("ALTER {}", role_data),
             CassandraStatement::AlterTable(table_data) => format!( "ALTER TABLE {} {}", table_data.name, table_data.operation ),
-            CassandraStatement::AlterType => unimplemented,
+            CassandraStatement::AlterType(alter_type_data) => alter_type_data.to_string(),
             CassandraStatement::AlterUser(user_data) => format!("ALTER {}", user_data),
             CassandraStatement::ApplyBatch => String::from("APPLY BATCH"),
             CassandraStatement::CreateAggregate => unimplemented,
@@ -3045,7 +3151,7 @@ mod tests {
 
     #[test]
     fn x() {
-        let qry = "DROP TRIGGER trigger_name ON table_name";
+        let qry = "ALTER TYPE keyspace.type RENAME column1 TO column2";
         let ast = CassandraAST::new(qry.to_string());
         let stmt = ast.statement;
         let stmt_str = stmt.to_string();
@@ -3056,14 +3162,12 @@ mod tests {
     fn test_get_statement_type() {
         let stmts = [
             "ALTER MATERIALIZED VIEW 'keyspace'.mview;",
-            "ALTER TYPE type ALTER column TYPE UUID;",
             "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (( 5, 'text', 6.3),(4,'foo',3.14));",
             "CREATE FUNCTION IF NOT EXISTS func ( param1 int , param2 text) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$;",
             "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC);",
             "Not a valid statement"];
         let types = [
             CassandraStatement::AlterMaterializedView,
-            CassandraStatement::AlterType,
             CassandraStatement::CreateAggregate,
             CassandraStatement::CreateFunction,
             CassandraStatement::CreateMaterializedView,
@@ -3718,6 +3822,29 @@ mod tests {
             "CREATE TYPE type (col1 'foo')",
             "CREATE TYPE IF NOT EXISTS keyspace.type (col1 'foo'<'subcol1', TIMESTAMP, BLOB>)",
             "CREATE TYPE type (col1 UUID, Col2 INT)",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_alter_type() {
+        let stmts = [
+            "ALTER TYPE keyspace.type ALTER column TYPE UUID;",
+        "ALTER TYPE keyspace.type ADD column2 UUID, column3 TIMESTAMP;",
+        "ALTER TYPE keyspace.type RENAME column1 TO column2;",
+        "ALTER TYPE type ALTER column TYPE UUID;",
+        "ALTER TYPE type ADD column2 UUID, column3 TIMESTAMP;",
+        "ALTER TYPE type RENAME column1 TO column2;",
+        "ALTER TYPE type RENAME column1 TO column2 AND col3 TO col4;",
+        ];
+        let expected = [
+            "ALTER TYPE keyspace.type ALTER column TYPE UUID",
+            "ALTER TYPE keyspace.type ADD column2 UUID, column3 TIMESTAMP",
+            "ALTER TYPE keyspace.type RENAME column1 TO column2",
+            "ALTER TYPE type ALTER column TYPE UUID",
+            "ALTER TYPE type ADD column2 UUID, column3 TIMESTAMP",
+            "ALTER TYPE type RENAME column1 TO column2",
+            "ALTER TYPE type RENAME column1 TO column2 AND col3 TO col4",
         ];
         test_parsing(&expected, &stmts);
     }
