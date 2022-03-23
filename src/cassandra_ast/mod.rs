@@ -13,7 +13,7 @@ pub enum CassandraStatement {
     AlterType(AlterTypeData),
     AlterUser(UserData),
     ApplyBatch,
-    CreateAggregate,
+    CreateAggregate(AggregateData),
     CreateFunction(FunctionData),
     CreateIndex(IndexData),
     CreateKeyspace(KeyspaceData),
@@ -1199,7 +1199,7 @@ impl CassandraStatement {
                 CassandraStatement::AlterUser(CassandraParser::parse_user_data(node, source))
             }
             "apply_batch" => CassandraStatement::ApplyBatch,
-            "create_aggregate" => CassandraStatement::CreateAggregate,
+            "create_aggregate" => CassandraStatement::CreateAggregate(CassandraParser::parse_aggregate_data(node, source)),
             "create_function" => CassandraStatement::CreateFunction(CassandraParser::parse_function_data( node, source )),
             "create_index" => CassandraStatement::CreateIndex(CassandraParser::parse_index_data( node, source )),
             "create_keyspace" => CassandraStatement::CreateKeyspace(
@@ -1290,6 +1290,120 @@ impl CassandraStatement {
 
 struct CassandraParser {}
 impl CassandraParser {
+    fn parse_init_condition(node: &Node, source: &String) -> InitCondition {
+        let mut cursor = node.walk();
+        if cursor.node().kind().eq("init_cond_definition") {
+            cursor.goto_first_child();
+        }
+        match cursor.node().kind() {
+            "constant" => InitCondition::Constant(NodeFuncs::as_string(&cursor.node(), source)),
+            "init_cond_list" => {
+                let mut entries = vec!();
+                cursor.goto_first_child();
+                // consume the '('
+                while cursor.goto_next_sibling() {
+                    if cursor.node().kind().eq("constant") {
+                        entries.push(InitCondition::Constant(NodeFuncs::as_string(&cursor.node(), source)));
+                    }
+                }
+                InitCondition::List(entries)
+            },
+            "init_cond_nested_list" => {
+                let mut entries = vec!();
+                cursor.goto_first_child();
+                while cursor.goto_next_sibling() {
+                    if cursor.node().kind().eq("init_cond_list") {
+                        entries.push(CassandraParser::parse_init_condition(&cursor.node(), source));
+                    }
+                }
+                InitCondition::List(entries)
+            }
+            "init_cond_hash" => {
+                let mut entries = vec!();
+                cursor.goto_first_child();
+                while cursor.goto_next_sibling() {
+                    if cursor.node().kind().eq("init_cond_hash_item") {
+                        cursor.goto_first_child();
+                        let key = NodeFuncs::as_string( &cursor.node(), source );
+                        cursor.goto_next_sibling();
+                        //consume ','
+                        cursor.goto_next_sibling();
+                        let value = CassandraParser::parse_init_condition(&cursor.node(), source);
+                        entries.push( (key,value));
+                        cursor.goto_parent();
+                    }
+                }
+                InitCondition::Map(entries)
+            }
+            _ => unreachable!()
+        }
+    }
+
+    fn parse_aggregate_data(node: &Node, source: &String) -> AggregateData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // consume 'CREATE'
+        cursor.goto_next_sibling();
+        AggregateData {
+            or_replace: if cursor.node().kind().eq("OR") {
+                // consume 'OR'
+                cursor.goto_next_sibling();
+                // consume 'REPLACE'
+                cursor.goto_next_sibling();
+                true
+            } else { false },
+            not_exists: {
+                // consume 'FUNCTION'
+                cursor.goto_next_sibling();
+                if cursor.node().kind().eq("IF") {
+                    // consume 'IF'
+                    cursor.goto_next_sibling();
+                    // consume 'NOT'
+                    cursor.goto_next_sibling();
+                    // consume 'EXISTS'
+                    cursor.goto_next_sibling();
+                    true
+                } else { false }
+            },
+            name: {
+                CassandraParser::parse_table_name(&cursor.node(), source)
+            },
+            data_type: {
+                cursor.goto_next_sibling();
+                // consume '('
+                cursor.goto_next_sibling();
+                CassandraParser::parse_data_type(&cursor.node(), source)
+            },
+            sfunc: {
+                cursor.goto_next_sibling();
+                // consume ')'
+                cursor.goto_next_sibling();
+                // consume 'SFUNC'
+                cursor.goto_next_sibling();
+                NodeFuncs::as_string(&cursor.node(), source)
+            },
+            stype: {
+                cursor.goto_next_sibling();
+                // consume 'STYPE'
+                cursor.goto_next_sibling();
+                CassandraParser::parse_data_type(&cursor.node(), source)
+            },
+            finalfunc: {
+                cursor.goto_next_sibling();
+                // consume 'FINALFUNC'
+                cursor.goto_next_sibling();
+                NodeFuncs::as_string(&cursor.node(), source)
+            },
+            init_cond: {
+                cursor.goto_next_sibling();
+                // consume 'INITCOND'
+                cursor.goto_next_sibling();
+                // on 'init_cond_definition;
+                CassandraParser::parse_init_condition(&cursor.node(), source)
+            }
+        }
+    }
+
     fn parse_function_data(node: &Node, source: &String) -> FunctionData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1297,7 +1411,6 @@ impl CassandraParser {
         cursor.goto_next_sibling();
         FunctionData {
             or_replace: if cursor.node().kind().eq("OR") {
-                let kind = cursor.node().kind();
                 // consume 'OR'
                 cursor.goto_next_sibling();
                 // consume 'REPLACE'
@@ -1344,27 +1457,18 @@ impl CassandraParser {
                 cursor.goto_next_sibling();
                 // consume 'RETURNS'
                 cursor.goto_next_sibling();
-                let kind = cursor.node().kind();
                 CassandraParser::parse_data_type(&cursor.node(), source)
             },
             language: {
-                let kind = cursor.node().kind();
                 cursor.goto_next_sibling();
-                let kind = cursor.node().kind();
                 // consume 'LANGUAGE'
                 cursor.goto_next_sibling();
-                let kind = cursor.node().kind();
                 NodeFuncs::as_string(&cursor.node(), source)
             },
             code_block: {
-                let kind = cursor.node().kind();
                 cursor.goto_next_sibling();
-                let kind = cursor.node().kind();
-
                 // consume 'AS'
                 cursor.goto_next_sibling();
-                let kind = cursor.node().kind();
-
                 NodeFuncs::as_string(&cursor.node(), source)
             },
         }
@@ -2911,7 +3015,7 @@ impl ToString for CassandraStatement {
             CassandraStatement::AlterType(alter_type_data) => alter_type_data.to_string(),
             CassandraStatement::AlterUser(user_data) => format!("ALTER {}", user_data),
             CassandraStatement::ApplyBatch => String::from("APPLY BATCH"),
-            CassandraStatement::CreateAggregate => unimplemented,
+            CassandraStatement::CreateAggregate(aggregate_data) => aggregate_data.to_string(),
             CassandraStatement::CreateFunction(function_data) => function_data.to_string(),
             CassandraStatement::CreateIndex(index_data) => index_data.to_string(),
             CassandraStatement::CreateKeyspace(keyspace_data) => {
@@ -3082,6 +3186,50 @@ fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Resource::TABLE(table) => write!(f, "TABLE {}", table),
     }
 }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct AggregateData {
+    or_replace: bool,
+    not_exists: bool,
+    name: String,
+    data_type: DataType,
+    sfunc: String,
+    stype: DataType,
+    finalfunc: String,
+    init_cond: InitCondition,
+}
+
+impl Display for AggregateData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CREATE {}AGGREGATE {}{} ({}) SFUNC {} STYPE {} FINALFUNC {} INITCOND {}",
+               if self.or_replace { "OR REPLACE " } else { "" },
+               if self.not_exists { "IF NOT EXISTS " } else { "" },
+               self.name,
+               self.data_type,
+               self.sfunc,
+               self.stype,
+            self.finalfunc,
+               self.init_cond
+        )
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub enum InitCondition {
+    Constant(String),
+    List(Vec<InitCondition>),
+    Map(Vec<(String, InitCondition)>),
+}
+
+impl Display for InitCondition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InitCondition::Constant(name) => write!(f, "{}", name),
+            InitCondition::List(lst) => write!(f, "({})", lst.iter().map(|x| x.to_string()).join(", ")),
+            InitCondition::Map(entries) => write!(f, "({})", entries.iter().map(|(k,v)| format!( "{}:{}", k,v)).join(", ")),
+        }
+    }
 }
 
 pub struct CassandraAST {
@@ -3279,7 +3427,7 @@ fn test_delete_statements() {
 
 #[test]
 fn x() {
-    let qry = "CREATE OR REPLACE FUNCTION keyspace.func (param1 INT, param2 TEXT) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$";
+    let qry = "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (key1:(5, 7, 9), key2:(2, 4, 6))";
     let ast = CassandraAST::new(qry.to_string());
     let stmt = ast.statement;
     let stmt_str = stmt.to_string();
@@ -3290,12 +3438,10 @@ fn x() {
 fn test_get_statement_type() {
     let stmts = [
         "ALTER MATERIALIZED VIEW 'keyspace'.mview;",
-        "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (( 5, 'text', 6.3),(4,'foo',3.14));",
         "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC);",
         "Not a valid statement"];
     let types = [
         CassandraStatement::AlterMaterializedView,
-        CassandraStatement::CreateAggregate,
         CassandraStatement::CreateMaterializedView,
         CassandraStatement::UNKNOWN("Not a valid statement".to_string()),
     ];
@@ -3985,6 +4131,27 @@ fn test_alter_type() {
             "CREATE OR REPLACE FUNCTION keyspace.func (param1 INT, param2 TEXT) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$",
             "CREATE OR REPLACE FUNCTION keyspace.func (param1 INT, param2 TEXT) RETURNS NULL ON NULL INPUT RETURNS TEXT LANGUAGE javascript AS $$ return 'hello'; $$",
             "CREATE FUNCTION IF NOT EXISTS func (param1 INT, param2 TEXT) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_aggregate() {
+        let stmts = [
+            "CREATE OR REPLACE AGGREGATE keyspace.aggregate ( UUID ) SFUNC sfunc STYPE TIMESTAMP FINALFUNC finalFunc INITCOND 5;",
+        "CREATE AGGREGATE IF NOT EXISTS keyspace.aggregate  ( UUID ) SFUNC sfunc STYPE TIMESTAMP FINALFUNC finalFunc INITCOND 5;",
+        "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND ( 5, 'text', 6.3);",
+        "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (( 5, 'text', 6.3),(4,'foo',3.14));",
+        "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND ( key : (5,7,9));",
+            "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND ( key1 : (5,7,9), key2 : (2,4,6));",
+        ];
+        let expected = [
+            "CREATE OR REPLACE AGGREGATE keyspace.aggregate (UUID) SFUNC sfunc STYPE TIMESTAMP FINALFUNC finalFunc INITCOND 5",
+            "CREATE AGGREGATE IF NOT EXISTS keyspace.aggregate (UUID) SFUNC sfunc STYPE TIMESTAMP FINALFUNC finalFunc INITCOND 5",
+            "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (5, 'text', 6.3)",
+            "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND ((5, 'text', 6.3), (4, 'foo', 3.14))",
+            "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (key:(5, 7, 9))",
+            "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (key1:(5, 7, 9), key2:(2, 4, 6))",
         ];
         test_parsing(&expected, &stmts);
     }
