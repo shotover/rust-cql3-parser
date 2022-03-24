@@ -2092,7 +2092,7 @@ impl CassandraParser {
             if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
             name: None,
             table: "".to_string(),
-            column: IndexColumnType::COLUMN("".to_string()),
+            column: IndexColumnType::Column("".to_string()),
         };
         let mut process = true;
         while process {
@@ -2115,14 +2115,14 @@ impl CassandraParser {
                             cursor.goto_next_sibling();
                             // consume '('
                             cursor.goto_next_sibling();
-                            IndexColumnType::KEYS(NodeFuncs::as_string(&cursor.node(), source))
+                            IndexColumnType::Keys(NodeFuncs::as_string(&cursor.node(), source))
                         }
                         "index_entries_s_spec" => {
                             cursor.goto_first_child();
                             cursor.goto_next_sibling();
                             // consume '('
                             cursor.goto_next_sibling();
-                            IndexColumnType::ENTRIES(NodeFuncs::as_string(&cursor.node(), source))
+                            IndexColumnType::Entries(NodeFuncs::as_string(&cursor.node(), source))
                         }
                         "index_full_spec" => {
                             cursor.goto_next_sibling();
@@ -2131,9 +2131,9 @@ impl CassandraParser {
                             cursor.goto_next_sibling();
                             // consume '('
                             cursor.goto_next_sibling();
-                            IndexColumnType::FULL(NodeFuncs::as_string(&cursor.node(), source))
+                            IndexColumnType::Full(NodeFuncs::as_string(&cursor.node(), source))
                         }
-                        _ => IndexColumnType::COLUMN(NodeFuncs::as_string(&cursor.node(), source)),
+                        _ => IndexColumnType::Column(NodeFuncs::as_string(&cursor.node(), source)),
                     };
                     cursor.goto_parent();
                 }
@@ -3332,19 +3332,19 @@ impl Display for FunctionData {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum IndexColumnType {
-    COLUMN(String),
-    KEYS(String),
-    ENTRIES(String),
-    FULL(String),
+    Column(String),
+    Keys(String),
+    Entries(String),
+    Full(String),
 }
 
 impl Display for IndexColumnType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            IndexColumnType::COLUMN(name) => write!(f, "{}", name),
-            IndexColumnType::KEYS(name) => write!(f, "KEYS( {} )", name),
-            IndexColumnType::ENTRIES(name) => write!(f, "ENTRIES( {} )", name),
-            IndexColumnType::FULL(name) => write!(f, "FULL( {} )", name),
+            IndexColumnType::Column(name) => write!(f, "{}", name),
+            IndexColumnType::Keys(name) => write!(f, "KEYS( {} )", name),
+            IndexColumnType::Entries(name) => write!(f, "ENTRIES( {} )", name),
+            IndexColumnType::Full(name) => write!(f, "FULL( {} )", name),
         }
     }
 }
