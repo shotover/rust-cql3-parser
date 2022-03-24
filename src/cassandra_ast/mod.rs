@@ -2,6 +2,9 @@ use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 use tree_sitter::{Node, Tree, TreeCursor};
 
+/// The Supported Cassandra CQL3 statements
+/// Documentation for statements can be found at
+/// https://docs.datastax.com/en/cql-oss/3.3/cql/cql_reference/cqlCommandsTOC.html
 #[derive(PartialEq, Debug, Clone)]
 pub enum CassandraStatement {
     AlterKeyspace(KeyspaceData),
@@ -44,9 +47,12 @@ pub enum CassandraStatement {
     UNKNOWN(String),
 }
 
+/// https://docs.datastax.com/en/cql-oss/3.3/cql/cql_reference/cqlListRoles.html
 #[derive(PartialEq, Debug, Clone)]
 pub struct ListRoleData {
+    /// List roles only fror this role.
     pub of: Option<String>,
+    /// if true the NORECURSIVE option has been set.
     pub no_recurse: bool,
 }
 
@@ -66,22 +72,34 @@ impl Display for ListRoleData {
     }
 }
 
+/// data item used in `Grant`, `ListPermissions` and `Revoke` statements.
 #[derive(PartialEq, Debug, Clone)]
 pub struct PrivilegeData {
+    /// the privilege that is being manipulated
     pub privilege: Privilege,
+    /// the resource on which the permission is applied
     pub resource: Option<Resource>,
+    /// the role name that tis being modified.
     pub role: Option<String>,
 }
 
+/// data for `Update` statements
 #[derive(PartialEq, Debug, Clone)]
 pub struct UpdateStatementData {
+    /// common modifiers for statements
     pub modifiers: StatementModifiers,
+    /// if present then statement starts with BEGIN BATCH
     pub begin_batch: Option<BeginBatch>,
+    /// the table name to update
     pub table_name: String,
+    /// if present then the TTL Timestamp for the update
     pub using_ttl: Option<TtlTimestamp>,
+    /// the column assignments for the update.
     pub assignments: Vec<AssignmentElement>,
+    /// the where clause
     pub where_clause: Vec<RelationElement>,
-    pub if_spec: Option<Vec<(String, String)>>,
+    /// if present a list of key,values for the `IF` clause
+    pub if_spec: Option<Vec<RelationElement>>,
 }
 
 impl Display for UpdateStatementData {
@@ -103,7 +121,6 @@ impl Display for UpdateStatementData {
                     .as_ref()
                     .unwrap()
                     .iter()
-                    .map(|(x, y)| format!("{} = {}", x, y))
                     .join(" AND ")
             )
         } else if self.modifiers.exists {
@@ -113,10 +130,14 @@ impl Display for UpdateStatementData {
     }
 }
 
+/// defines an assignment element comprising the column, the value, and an optional +/- value operator.
 #[derive(PartialEq, Debug, Clone)]
 pub struct AssignmentElement {
+    /// the column to set the value for.
     pub name: IndexedColumn,
+    /// the column value
     pub value: Operand,
+    /// an optional +/- value
     pub operator: Option<AssignmentOperator>,
 }
 
@@ -129,6 +150,7 @@ impl Display for AssignmentElement {
     }
 }
 
+/// Defines the optional +/- value for an assignment
 #[derive(PartialEq, Debug, Clone)]
 pub enum AssignmentOperator {
     Plus(Operand),
@@ -144,30 +166,42 @@ impl Display for AssignmentOperator {
     }
 }
 
+/// Defines an indexed column.  Indexed columns comprise a column name and an optional index into
+/// the column.  This is expressed as `column[idx]`
 #[derive(PartialEq, Debug, Clone)]
 pub struct IndexedColumn {
+    /// the column name
     column: String,
-    value: Option<String>,
+    /// the optional index in to the column
+    idx: Option<String>,
 }
 
 impl Display for IndexedColumn {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match &self.value {
+        match &self.idx {
             Some(x) => write!(f, "{}[{}]", self.column, x),
             None => write!(f, "{}", self.column),
         }
     }
 }
 
+/// the data for a delete statement.
 #[derive(PartialEq, Debug, Clone)]
 pub struct DeleteStatementData {
+    /// standard statement modifiers
     pub modifiers: StatementModifiers,
+    /// if set the statement starts with `BEGIN BATCH`
     pub begin_batch: Option<BeginBatch>,
+    /// an optional list of columns to delete
     pub columns: Option<Vec<IndexedColumn>>,
+    /// the table to delete from
     pub table_name: String,
+    /// an optional timestamp to use for the deletion.
     pub timestamp: Option<u64>,
+    /// the were clause for the delete.
     pub where_clause: Vec<RelationElement>,
-    pub if_spec: Option<Vec<(String, String)>>,
+    /// if present a list of key,values for the `IF` clause
+    pub if_spec: Option<Vec<RelationElement>>,
 }
 
 impl Display for DeleteStatementData {
@@ -184,7 +218,6 @@ impl Display for DeleteStatementData {
                     .as_ref()
                     .unwrap()
                     .iter()
-                    .map(|(x, y)| format!("{} = {}", x, y))
                     .join(" AND ")
             )
         } else if self.modifiers.exists {
@@ -194,34 +227,43 @@ impl Display for DeleteStatementData {
     }
 }
 
+/// the data for insert statements.
 #[derive(PartialEq, Debug, Clone)]
 pub struct InsertStatementData {
+    /// if set the statement starts with `BEGIN BATCH`
     pub begin_batch: Option<BeginBatch>,
+    /// standard statement modifiers
     pub modifiers: StatementModifiers,
+    /// the table name
     pub table_name: String,
-    pub columns: Option<Vec<String>>,
-    pub values: Option<InsertValues>,
+    /// an the list of of column names to insert into.
+    pub columns: Vec<String>,
+    /// the `VALUES` to insert
+    pub values: InsertValues,
+    /// if set the timestamp for `USING TTL`
     pub using_ttl: Option<TtlTimestamp>,
 }
 
 impl Display for InsertStatementData {
 
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!( f, "{}INSERT INTO {} {}{}{}{}",
+        write!( f, "{}INSERT INTO {} ({}) {}{}{}",
             self.begin_batch.as_ref().map_or("".to_string(), |x| x.to_string()),
         self.table_name,
-        self.columns.as_ref().map_or( "".to_string(), |x|
-            format!( "({}) ", x.iter().join(", "))),
-        self.values.as_ref().unwrap(),
+        self.columns.join(", "),
+        self.values,
         if self.modifiers.not_exists {" IF NOT EXISTS" } else {""},
         self.using_ttl.as_ref().map_or( "".to_string(),|x| x.to_string()),
         )
     }
 }
 
+/// the structure of the TTL / Timestamp option.
 #[derive(PartialEq, Debug, Clone)]
 pub struct TtlTimestamp {
+    /// the optional time-to-live value
     ttl: Option<u64>,
+    /// the optional timestamp value
     timestamp: Option<u64>,
 }
 
@@ -245,10 +287,18 @@ impl Display for TtlTimestamp {
     }
 }
 
+/// defines the `BEGIN BATCH` data
+/// NOTE: It is possible to set bot LOGGED and UNLOGGED however this will yield an
+/// unparsable statment.
 #[derive(PartialEq, Debug, Clone)]
 pub struct BeginBatch {
+    /* the logged and unlogged can not be merged into a single statement as one or the other or
+     neither may be selected */
+    /// if true the `LOGGED` option will be displayed.
     logged: bool,
+    /// if true the `UNLOGGED` option will be displayed.
     unlogged: bool,
+    /// the optional timestamp for the `BEGIN BATCH` command
     timestamp: Option<u64>,
 }
 impl Default for BeginBatch {
@@ -289,9 +339,12 @@ impl Display for BeginBatch {
     }
 }
 
+/// The structure that describs the values to insert.
 #[derive(PartialEq, Debug, Clone)]
 pub enum InsertValues {
+    /// this is the standard list of values.
     VALUES(Vec<Operand>),
+    /// this option allows JSON string to define the values.
     JSON(String),
 }
 
@@ -308,15 +361,24 @@ impl Display for InsertValues {
     }
 }
 
+/// An object that can be on either side of an `Operator`
 #[derive(PartialEq, Debug, Clone)]
 pub enum Operand {
+    /// A constant
     CONST(String),
+    /// a map displays as `{ String:String, String:String, ... }`
     MAP(Vec<(String, String)>),
+    /// a set of values.  Displays as `( String, String, ...)`
     SET(Vec<String>),
+    /// a list of values.  Displays as `[String, String, ...]`
     LIST(Vec<String>),
+    /// a tuple of values.  Displays as `{ Operand, Operand, ... }`
     TUPLE(Vec<Operand>),
+    /// A column name
     COLUMN(String),
+    /// A function name
     FUNC(String),
+    /// the `NULL` value.
     NULL,
 }
 
@@ -361,12 +423,18 @@ impl Display for Operand {
     }
 }
 
+/// data for select statements
 #[derive(PartialEq, Debug, Clone)]
 pub struct SelectStatementData {
+    /// the standard statement modifiers
     pub modifiers: StatementModifiers,
+    /// The table name.
     pub table_name: String,
+    /// the list of elements to select.
     pub elements: Vec<SelectElement>,
+    /// the where clause
     pub where_clause: Option<Vec<RelationElement>>,
+    /// the optional ordering
     pub order: Option<OrderClause>,
 }
 
@@ -441,11 +509,16 @@ impl Display for SelectStatementData {
     }
 }
 
+/// the selectable elements for a select statement
 #[derive(PartialEq, Debug, Clone)]
 pub enum SelectElement {
+    /// All of the columns
     Star,
+    /// a name followed by a '.*' (e.g. `foo.*`)
     DotStar(String),
+    /// a named column.  May have an alias specified.
     Column(Named),
+    /// a named column.  May have an alias specified.
     Function(Named),
 }
 
@@ -465,6 +538,7 @@ pub struct Named {
     pub(crate) alias: Option<String>,
 }
 
+/// the name an optional alias for a named item.
 impl Named {
     pub fn alias_or_name(&self) -> String {
         match &self.alias {
@@ -483,9 +557,12 @@ impl Display for Named {
     }
 }
 
+/// the order clause
 #[derive(PartialEq, Debug, Clone)]
 pub struct OrderClause {
+    /// the column to order by.
     name: String,
+    /// if `true` then the order is descending,
     desc: bool,
 }
 
@@ -528,6 +605,7 @@ impl Display for RelationElement {
     }
 }
 
+/// A relation operator used in `WHERE` and `IF` clauses.
 #[derive(PartialEq, Debug, Clone)]
 pub enum RelationOperator {
     LT,
@@ -539,10 +617,13 @@ pub enum RelationOperator {
     IN,
     Contains,
     ContainsKey,
+    /// this is not used in normal cases it is used in the MaterializedView to specify
+    /// a collumn that must not be null.
     IsNot,
 }
 
 impl RelationOperator {
+    /// evaluates the expression for any PartialOrd implementation
     pub fn eval<T>(&self, left: &T, right: &T) -> bool
     where
         T: PartialOrd,
@@ -579,13 +660,21 @@ impl Display for RelationOperator {
     }
 }
 
+/// The standard statement modifiers.
+/// Note:  Not all options apply to all statements.
 #[derive(PartialEq, Debug, Clone)]
 pub struct StatementModifiers {
+    /// specifies a distinct query
     pub distinct: bool,
+    /// retrieve tha data in JSON format
     pub json: bool,
+    /// limits the number of rows to be operated on.
     pub limit: Option<i32>,
+    /// allow filtering on query.
     pub filtering: bool,
+    /// only if the table does not exist
     pub not_exists: bool,
+    /// only if the table exists.
     pub exists: bool,
 }
 
@@ -608,9 +697,12 @@ impl StatementModifiers {
     }
 }
 
+/// data for an `AlterType` statement
 #[derive(PartialEq, Debug, Clone)]
 pub struct AlterTypeData {
+    /// the name of the type to alter
     name: String,
+    /// the operation to perform on the type.
     operation: AlterTypeOperation,
 }
 
@@ -620,10 +712,14 @@ impl Display for AlterTypeData {
     }
 }
 
+/// the alter type operations.
 #[derive(PartialEq, Debug, Clone)]
 pub enum AlterTypeOperation {
+    /// Alter the column type
     AlterColumnType(AlterColumnTypeData),
+    /// Add a columm
     Add(Vec<ColumnDefinition>),
+    /// rename a column
     Rename(Vec<(String, String)>),
 }
 
@@ -648,9 +744,12 @@ impl Display for AlterTypeOperation {
     }
 }
 
+/// data to alter a column type.
 #[derive(PartialEq, Debug, Clone)]
 pub struct AlterColumnTypeData {
+    /// the name of the column
     name: String,
+    /// the data type to set the colum to.
     data_type: DataType,
 }
 
@@ -660,18 +759,27 @@ impl Display for AlterColumnTypeData {
     }
 }
 
+/// data for the `AlterTable` command
 #[derive(PartialEq, Debug, Clone)]
 pub struct AlterTableData {
+    /// the name of the table.
     name: String,
+    /// the table alteration operation.
     operation: AlterTableOperation,
 }
 
+/// table alteration operations
 #[derive(PartialEq, Debug, Clone)]
 enum AlterTableOperation {
+    /// add columns to the table.
     Add(Vec<ColumnDefinition>),
+    /// drop columns from the table.
     DropColumns(Vec<String>),
+    /// drop the "compact storage"
     DropCompactStorage,
+    /// rename columns `(from, to)`
     Rename((String, String)),
+    /// add with element options.
     With(WithElement),
 }
 
@@ -695,9 +803,12 @@ impl Display for AlterTableOperation {
     }
 }
 
+/// The data for an `AlterMaterializedView` statement
 #[derive(PartialEq, Debug, Clone)]
 pub struct AlterMaterializedViewData {
+    /// the name of the materialzied view.
     name: String,
+    /// the with options for the view.
     with: WithElement,
 }
 
@@ -719,26 +830,23 @@ impl Display for AlterMaterializedViewData {
     }
 }
 
-/*
-   /*
-   seq(
-               kw("ALTER"),
-               kw( "MATERIALIZED"),
-               kw( "VIEW"),
-               $.materialized_view_name,
-               optional( $.with_element),
-           ),
-    */
-
-*/
+/// the data to create a materialized view
 #[derive(PartialEq, Debug, Clone)]
 pub struct CreateMaterializedViewData {
+    /// only create if it does not exist.
     if_not_exists: bool,
+    /// the name of the materialized view.
     name: String,
+    /// the columns in the view.
     columns: Vec<String>,
+    /// the table to extract the view from.
     table: String,
+    /// the where clause to select.  Note: all elements of the primary key must be listed
+    /// in the where clause as `column ISNOT NULL`
     where_clause: Vec<RelationElement>,
+    /// the primary key for the view
     key: PrimaryKey,
+    /// the with options.
     with: WithElement,
 }
 
@@ -769,12 +877,18 @@ impl Display for CreateMaterializedViewData {
     }
 }
 
+/// The data for a `Create table` statement
 #[derive(PartialEq, Debug, Clone)]
 pub struct CreateTableData {
+    /// only create if the table does not exist
     if_not_exists: bool,
+    /// the name of the table
     name: String,
+    /// the column definitions.
     columns: Vec<ColumnDefinition>,
+    /// the primary key if not specified in the column definitions.
     key: Option<PrimaryKey>,
+    /// the list of `WITH` options.
     with: WithElement,
 }
 
@@ -806,10 +920,14 @@ impl Display for CreateTableData {
     }
 }
 
+/// The data for a `CREATE TYPE` statement.
 #[derive(PartialEq, Debug, Clone)]
 pub struct TypeData {
+    /// only if the type does not exist.
     not_exists: bool,
+    /// the name of the type
     name: String,
+    /// the definition of the type.
     columns: Vec<ColumnDefinition>,
 }
 
@@ -829,10 +947,16 @@ impl Display for TypeData {
     }
 }
 
+/// A column definition.
+/// This is used in many places, however the primary_key value should only be used in
+/// the `create table` calls.  In all other cases it will yield an invalid statment.
 #[derive(PartialEq, Debug, Clone)]
 pub struct ColumnDefinition {
+    /// the name of the column
     name: String,
+    /// the data type for the column
     data_type: DataType,
+    /// if set this column is the primary key.
     primary_key: bool,
 }
 
@@ -847,9 +971,14 @@ impl Display for ColumnDefinition {
         )
     }
 }
+
+/// the definition of a data type
 #[derive(PartialEq, Debug, Clone)]
 pub struct DataType {
+    /// the name of the data type.
     name: DataTypeName,
+    /// the definition of the data type.  Normally this is empty but may contain data types that
+    /// comprise the named type. (e.g. `FROZEN<foo>` will have foo in the definition)
     definition: Vec<DataTypeName>,
 }
 
@@ -862,6 +991,8 @@ impl Display for DataType {
         }
     }
 }
+
+/// An enumeration of data types.
 #[derive(PartialEq, Debug, Clone)]
 pub enum DataTypeName {
     TIMESTAMP,
@@ -889,6 +1020,7 @@ pub enum DataTypeName {
     VARCHAR,
     VARINT,
     UUID,
+    /// defines a custom type.  Where the name is the name of the type.
     CUSTOM(String),
 }
 
@@ -957,6 +1089,8 @@ impl DataTypeName {
     }
 }
 
+/// The definition of a primary key.
+/// There must be at least one column specified in the partition.
 #[derive(PartialEq, Debug, Clone)]
 pub struct PrimaryKey {
     partition: Vec<String>,
@@ -989,10 +1123,14 @@ impl Display for PrimaryKey {
     }
 }
 
+/// data for the `CreateTrigger` statement.
 #[derive(PartialEq, Debug, Clone)]
 pub struct TriggerData {
+    /// only create if it does not exist.
     not_exists: bool,
+    /// the name of the trigger.
     name: String,
+    /// the class the implements the trigger.
     class: String,
 }
 
@@ -1011,13 +1149,21 @@ impl Display for TriggerData {
         )
     }
 }
+
+/// the WithElement found in many statement types.
+/// this is a list of WithItems
 pub type WithElement = Vec<WithItem>;
 
+/// The definition of the items in a WithElement
 #[derive(PartialEq, Debug, Clone)]
 pub enum WithItem {
+    /// an option comprising the key (name) and the value for the option.
     Option { key: String, value: OptionValue },
+    /// A clustering order clause.
     ClusterOrder(OrderClause),
+    /// the ID the ID for the table/view.
     ID(String),
+    /// use compact storage.
     CompactStorage,
 }
 
@@ -1032,17 +1178,18 @@ impl Display for WithItem {
     }
 }
 
+/// the definition of an option value, is either literal string or a map of Key,value pairs.
 #[derive(PartialEq, Debug, Clone)]
 pub enum OptionValue {
     Literal(String),
-    Hash(Vec<(String, String)>),
+    Map(Vec<(String, String)>),
 }
 
 impl Display for OptionValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             OptionValue::Literal(txt) => write!(f, "{}", txt),
-            OptionValue::Hash(items) => write!(
+            OptionValue::Map(items) => write!(
                 f,
                 "{{{}}}",
                 items.iter().map(|(x, y)| format!("{}:{}", x, y)).join(", ")
@@ -1050,13 +1197,21 @@ impl Display for OptionValue {
         }
     }
 }
+
+/// the data for the `create role` statement.
 #[derive(PartialEq, Debug, Clone)]
 pub struct RoleData {
+    /// the name of the role
     name: String,
+    /// if specified the password for the role
     password: Option<String>,
+    /// if specified then the user is explicitly noted as `SUPERUER` or `NOSUPERUSER`
     superuser: Option<bool>,
+    /// if specified the user LOGIN option is specified
     login: Option<bool>,
+    /// the list of options for an external authenticator.
     options: Vec<(String, String)>,
+    /// only create the role if it does not exist.
     if_not_exists: bool,
 }
 
@@ -1122,11 +1277,16 @@ impl Display for RoleData {
     }
 }
 
+/// The data necessary to create a keyspace.
 #[derive(PartialEq, Debug, Clone)]
 pub struct KeyspaceData {
+    /// the name of the keyspace
     name: String,
+    /// replication strategy options.
     replication: Vec<(String, String)>,
+    /// if specified the DURABLE WRITES option will be output.
     durable_writes: Option<bool>,
+    /// only create if the keyspace does not exist.
     if_not_exists: bool,
 }
 impl Display for KeyspaceData {
@@ -1169,12 +1329,19 @@ impl Display for KeyspaceData {
         }
     }
 }
+
+/// data for the `create user` statement.
 #[derive(PartialEq, Debug, Clone)]
 pub struct UserData {
+    /// the user name
     name: String,
+    /// the password for the user.
     password: Option<String>,
+    /// if true the `SUPERUSER` option is specified
     superuser: bool,
+    /// it true the `NOSUPERUSER` option is specified.
     no_superuser: bool,
+    /// only create if the user does not exist.
     if_not_exists: bool,
 }
 
@@ -1219,10 +1386,14 @@ impl Display for UserData {
     }
 }
 
+/// The data for a `drop trigger` command
 #[derive(PartialEq, Debug, Clone)]
 pub struct DropTriggerData {
+    /// the name of the trigger
     name: String,
+    /// the table the trigger is associated with.
     table: String,
+    /// only drop if the trigger exists
     if_exists: bool,
 }
 
@@ -1238,9 +1409,12 @@ impl Display for DropTriggerData {
     }
 }
 
+/// the data for many `Drop` commands
 #[derive(PartialEq, Debug, Clone)]
 pub struct DropData {
+    /// the name of the thing being dropped.
     name: String,
+    /// only drop if th thing exists.
     if_exists: bool,
 }
 
@@ -1255,18 +1429,21 @@ impl DropData {
     }
 }
 
+/// Functions for common manipulation of the nodes in the AST tree.
 struct NodeFuncs {}
-
 impl NodeFuncs {
+    /// get the string value of the node
     pub fn as_string(node: &Node, source: &str) -> String {
         node.utf8_text(source.as_bytes()).unwrap().to_string()
     }
-
+    /// the the value of the node as a boolean
     pub fn as_boolean(node: &Node, source: &str) -> bool {
         NodeFuncs::as_string(node, source).to_uppercase().eq("TRUE")
     }
 }
+
 impl CassandraStatement {
+    /// extract the cassandra statement from an AST tree.
     pub fn from_tree(tree: &Tree, source: &str) -> CassandraStatement {
         let mut node = tree.root_node();
         if node.kind().eq("source_file") {
@@ -1275,6 +1452,7 @@ impl CassandraStatement {
         CassandraStatement::from_node(&node, source)
     }
 
+    /// extract the cassandra statement from an AST node.
     pub fn from_node(node: &Node, source: &str) -> CassandraStatement {
         match node.kind() {
             "alter_keyspace" => CassandraStatement::AlterKeyspace(
@@ -1409,8 +1587,10 @@ impl CassandraStatement {
     }
 }
 
+/// The parser that walks the AST tree and produces a CassandraStatement.
 struct CassandraParser {}
 impl CassandraParser {
+    /// parse the alter materialized view command
     fn parse_alter_materialized_view(node: &Node, source: &str) -> AlterMaterializedViewData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1429,6 +1609,7 @@ impl CassandraParser {
             },
         }
     }
+    /// parse init_condition for aggregate data.
     fn parse_init_condition(node: &Node, source: &str) -> InitCondition {
         let mut cursor = node.walk();
         if cursor.node().kind().eq("init_cond_definition") {
@@ -1483,7 +1664,7 @@ impl CassandraParser {
             _ => unreachable!(),
         }
     }
-
+    /// parse a create aggregate data statement
     fn parse_aggregate_data(node: &Node, source: &str) -> AggregateData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1551,6 +1732,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse a create function statement
     fn parse_function_data(node: &Node, source: &str) -> FunctionData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1626,6 +1808,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse an alter type statement
     fn parse_alter_type(node: &Node, source: &str) -> AlterTypeData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1692,6 +1875,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse an create type statement
     fn parse_type_data(node: &Node, source: &str) -> TypeData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1713,6 +1897,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse a create trigger statement
     fn parse_trigger_data(node: &Node, source: &str) -> TriggerData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1728,6 +1913,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse the alter table operation.
     fn parse_alter_table_operation(node: &Node, source: &str) -> AlterTableOperation {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1777,6 +1963,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse an alter table statement.
     fn parse_alter_table(node: &Node, source: &str) -> AlterTableData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1793,6 +1980,8 @@ impl CassandraParser {
             },
         }
     }
+
+    /// parse the primary key.
     fn parse_primary_key_element(node: &Node, source: &str) -> PrimaryKey {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1865,6 +2054,8 @@ impl CassandraParser {
         }
         primary_key
     }
+
+    /// parse the data type
     fn parse_data_type(node: &Node, source: &str) -> DataType {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1888,6 +2079,8 @@ impl CassandraParser {
         }
         result
     }
+
+    /// parse a column definition
     fn parse_column_definition(node: &Node, source: &str) -> ColumnDefinition {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1901,6 +2094,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse table options
     fn parse_table_options(node: &Node, source: &str) -> Vec<WithItem> {
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
@@ -1929,7 +2123,7 @@ impl CassandraParser {
                     } else if cursor.node().kind().eq("option_hash") {
                         result.push(WithItem::Option {
                             key,
-                            value: OptionValue::Hash(CassandraParser::parse_map(
+                            value: OptionValue::Map(CassandraParser::parse_map(
                                 &cursor.node(),
                                 source,
                             )),
@@ -1968,6 +2162,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse materialized view where statement
     fn parse_materialized_where(node: &Node, source: &str) -> Vec<RelationElement> {
         let mut relations: Vec<RelationElement> = vec![];
         let mut cursor = node.walk();
@@ -1992,6 +2187,8 @@ impl CassandraParser {
         }
         relations
     }
+
+    /// parse a create materialized view statement
     fn parse_create_materialized_vew(node: &Node, source: &str) -> CreateMaterializedViewData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2032,6 +2229,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse a create table statement
     fn parse_create_table(node: &Node, source: &str) -> CreateTableData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2075,6 +2273,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse the `with` element.
     fn parse_with_element(node: &Node, source: &str) -> WithElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2085,6 +2284,8 @@ impl CassandraParser {
         }
         vec![]
     }
+
+    /// parse create index statement.
     fn parse_index_data(node: &Node, source: &str) -> IndexData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2143,6 +2344,8 @@ impl CassandraParser {
         }
         result
     }
+
+    /// parse the list roles statement
     fn parse_list_role_data(node: &Node, source: &str) -> ListRoleData {
         let mut cursor = node.walk();
         let mut result = ListRoleData {
@@ -2163,6 +2366,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse a resource type
     fn parse_resource(node: &Node, source: &str) -> Resource {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2209,6 +2413,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse the create role statement
     fn parse_role_data(node: &Node, source: &str) -> RoleData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2268,6 +2473,7 @@ impl CassandraParser {
         result
     }
 
+    /// consume 2 keywords and check the not exists flag.
     fn consume_2_keywords_and_check_not_exists(cursor: &mut TreeCursor) -> bool {
         let mut if_not_exists = false;
         // consume first keyword
@@ -2286,6 +2492,7 @@ impl CassandraParser {
         if_not_exists
     }
 
+    /// consume 2 keywords and check the if exists flag.
     fn consume_2_keywords_and_check_exists(cursor: &mut TreeCursor) -> bool {
         let mut if_exists = false;
         // consume first keyword
@@ -2302,6 +2509,7 @@ impl CassandraParser {
         if_exists
     }
 
+    /// parse the create keyspace command
     fn parse_keyspace_data(node: &Node, source: &str) -> KeyspaceData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2332,6 +2540,8 @@ impl CassandraParser {
 
         result
     }
+
+    /// parse the create user statement
     fn parse_user_data(node: &Node, source: &str) -> UserData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2372,6 +2582,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse the update statement.
     pub fn parse_update_statement(node: &Node, source: &str) -> UpdateStatementData {
         let mut statement_data = UpdateStatementData {
             begin_batch: None,
@@ -2432,6 +2643,7 @@ impl CassandraParser {
         statement_data
     }
 
+    /// parse the privilege
     fn parse_privilege(node: &Node, source: &str) -> Privilege {
         match NodeFuncs::as_string(node, source).to_uppercase().as_str() {
             "ALL" | "ALL PERMISSIONS" => Privilege::ALL,
@@ -2447,6 +2659,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse the privilege data.
     fn parse_privilege_data(node: &Node, source: &str) -> PrivilegeData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2474,6 +2687,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse an assignment element
     fn parse_assignment_element(node: &Node, source: &str) -> AssignmentElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2499,6 +2713,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse a delete statement.
     pub fn parse_delete_statement(node: &Node, source: &str) -> DeleteStatementData {
         let mut statement_data = DeleteStatementData {
             begin_batch: None,
@@ -2570,39 +2785,36 @@ impl CassandraParser {
         statement_data
     }
 
-    fn parse_if_condition_list(node: &Node, source: &str) -> Option<Vec<(String, String)>> {
-        let mut result = vec![];
+    /// parse an `IF` condition list
+    fn parse_if_condition_list(node: &Node, source: &str) -> Option<Vec<RelationElement>> {
+        let mut result:Vec<RelationElement> = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
         while process {
-            cursor.goto_first_child();
-            let column = NodeFuncs::as_string(&cursor.node(), source);
-            // consume the '='
-            cursor.goto_next_sibling();
-            cursor.goto_next_sibling();
-            let value = NodeFuncs::as_string(&cursor.node(), source);
-            result.push((column, value));
-            cursor.goto_parent();
+            result.push(CassandraParser::parse_relation_element(
+                &cursor.node(),
+                source,
+            ));
             process = cursor.goto_next_sibling();
-            if process {
-                // we found 'AND' so get real next node
-                cursor.goto_next_sibling();
-            }
+            // consume the 'AND' if it exists
+            cursor.goto_next_sibling();
         }
         Some(result)
     }
 
+    /// parse a delete column item
     fn parse_delete_column_item(node: &Node, source: &str) -> IndexedColumn {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         CassandraParser::parse_indexed_column(&mut cursor, source)
     }
 
+    /// parse an indexed column
     fn parse_indexed_column(cursor: &mut TreeCursor, source: &str) -> IndexedColumn {
         IndexedColumn {
             column: NodeFuncs::as_string(&cursor.node(), source),
 
-            value: if cursor.goto_next_sibling() && cursor.node().kind().eq("[") {
+            idx: if cursor.goto_next_sibling() && cursor.node().kind().eq("[") {
                 // consume '['
                 cursor.goto_next_sibling();
                 let result = Some(NodeFuncs::as_string(&cursor.node(), source));
@@ -2615,80 +2827,87 @@ impl CassandraParser {
         }
     }
 
+    /// parse an insert statement.
     pub fn parse_insert_statement(node: &Node, source: &str) -> InsertStatementData {
-        let mut statement_data = InsertStatementData {
-            begin_batch: None,
-            modifiers: StatementModifiers::new(),
-            table_name: String::from(""),
-            columns: None,
-            values: None,
-            using_ttl: None,
-        };
-
         let mut cursor = node.walk();
-        let mut process = cursor.goto_first_child();
-
-        while process {
-            match cursor.node().kind() {
-                "begin_batch" => {
-                    statement_data.begin_batch =
-                        Some(CassandraParser::parse_begin_batch(&cursor.node(), source))
-                }
-                "table_name" => {
-                    statement_data.table_name =
-                        CassandraParser::parse_table_name(&cursor.node(), source);
-                }
-                "insert_column_spec" => {
-                    cursor.goto_first_child();
-                    // consume the '(' at the beginning
-                    while cursor.goto_next_sibling() {
-                        if cursor.node().kind().eq("column_list") {
-                            statement_data.columns =
-                                Some(CassandraParser::parse_column_list(&cursor.node(), source));
-                        }
+        let mut if_not_exists =false;
+        cursor.goto_first_child();
+        let mut data = InsertStatementData {
+            begin_batch: if cursor.node().kind().eq("begin_batch") {
+                let result = Some(CassandraParser::parse_begin_batch(&cursor.node(), source));
+                cursor.goto_next_sibling();
+                result
+            } else { None },
+            modifiers: StatementModifiers::new(),
+            table_name: {
+                // consume INSERT
+                cursor.goto_next_sibling();
+                // consume INTO
+                cursor.goto_next_sibling();
+                let kind = cursor.node().kind();
+                CassandraParser::parse_table_name(&cursor.node(), source)
+            },
+            columns: {
+                cursor.goto_next_sibling();
+                cursor.goto_first_child();
+                let kind = cursor.node().kind();
+                // consume the '(' at the beginning
+                cursor.goto_next_sibling();
+                let result = CassandraParser::parse_column_list(&cursor.node(), source);
+                cursor.goto_parent();
+                result
+            },
+            values: {
+                let kind = cursor.node().kind();
+                cursor.goto_next_sibling();
+                let kind = cursor.node().kind();
+                cursor.goto_first_child();
+                let kind = cursor.node().kind();
+                let result = match cursor.node().kind() {
+                    "VALUES" => {
+                        cursor.goto_next_sibling();
+                        // consume the '('
+                        cursor.goto_next_sibling();
+                        let expression_list =
+                            CassandraParser::parse_expression_list(&cursor.node(), source);
+                        InsertValues::VALUES(expression_list)
                     }
-                    cursor.goto_parent();
-                }
-                "insert_values_spec" => {
-                    cursor.goto_first_child();
-                    match cursor.node().kind() {
-                        "VALUES" => {
-                            cursor.goto_next_sibling();
-                            // consume the '('
-                            cursor.goto_next_sibling();
-                            let expression_list =
-                                CassandraParser::parse_expression_list(&cursor.node(), source);
-                            statement_data.values = Some(InsertValues::VALUES(expression_list));
-                        }
-                        "JSON" => {
-                            cursor.goto_next_sibling();
-                            statement_data.values = Some(InsertValues::JSON(NodeFuncs::as_string(
-                                &cursor.node(),
-                                source,
-                            )));
-                        }
-                        _ => {}
+                    "JSON" => {
+                        cursor.goto_next_sibling();
+                        InsertValues::JSON(NodeFuncs::as_string(
+                            &cursor.node(),
+                            source,
+                        ))
                     }
-                    cursor.goto_parent();
-                }
-                "IF" => {
-                    // consume NOT
-                    cursor.goto_next_sibling();
-                    // consume EXISTS
-                    cursor.goto_next_sibling();
-                    statement_data.modifiers.not_exists = true;
-                }
-                "using_ttl_timestamp" => {
-                    statement_data.using_ttl =
-                        Some(CassandraParser::parse_ttl_timestamp(&cursor.node(), source));
-                }
-                _ => {}
-            }
-            process = cursor.goto_next_sibling();
-        }
-        statement_data
+                    _ => unreachable!()
+                };
+                cursor.goto_parent();
+                result
+            },
+            using_ttl: {
+                if cursor.goto_next_sibling() {
+                    if cursor.node().kind().eq("IF") {
+                        // consume IF
+                        cursor.goto_next_sibling();
+                        // consume NOT
+                        cursor.goto_next_sibling();
+                        // consume EXISTS
+                        cursor.goto_next_sibling();
+                        if_not_exists = true;
+                    }
+                    if cursor.node().kind().eq("using_ttl_timestamp") {
+                        Some(CassandraParser::parse_ttl_timestamp(&cursor.node(), source))
+                    } else { None }
+                } else {None}
+            },
+        };
+        data.modifiers.not_exists = if_not_exists;
+        data
     }
 
+
+
+    /// parse a column list
     fn parse_column_list(node: &Node, source: &str) -> Vec<String> {
         let mut result: Vec<String> = vec![];
         let mut cursor = node.walk();
@@ -2705,6 +2924,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse the using timestamp sttement.
     fn parse_using_timestamp(node: &Node, source: &str) -> Option<u64> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2719,6 +2939,7 @@ impl CassandraParser {
         )
     }
 
+    /// parse the using ttl timestamp element.
     fn parse_ttl_timestamp(node: &Node, source: &str) -> TtlTimestamp {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2747,6 +2968,7 @@ impl CassandraParser {
         TtlTimestamp { ttl, timestamp }
     }
 
+    /// parse the `FROM` clause
     fn parse_from_spec(node: &Node, source: &str) -> String {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2755,6 +2977,7 @@ impl CassandraParser {
         CassandraParser::parse_table_name(&cursor.node(), source)
     }
 
+    /// parse a name that may have a keyspace specified.
     fn parse_dotted_name(cursor: &mut TreeCursor, source: &str) -> String {
         let mut result = NodeFuncs::as_string(&cursor.node(), source);
         if cursor.goto_next_sibling() {
@@ -2766,12 +2989,15 @@ impl CassandraParser {
         }
         result
     }
+
+    /// parse a table name
     fn parse_table_name(node: &Node, source: &str) -> String {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         CassandraParser::parse_dotted_name(&mut cursor, source)
     }
 
+    /// parse the function args.
     fn parse_function_args(node: &Node, source: &str) -> Vec<Operand> {
         let mut result = vec![];
         let mut cursor = node.walk();
@@ -2788,6 +3014,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse an expressin list.
     fn parse_expression_list(node: &Node, source: &str) -> Vec<Operand> {
         let mut result = vec![];
         let mut cursor = node.walk();
@@ -2804,9 +3031,19 @@ impl CassandraParser {
         result
     }
 
+    /// parse an operand
     fn parse_operand(node: &Node, source: &str) -> Operand {
         match node.kind() {
-            "constant" => Operand::CONST(NodeFuncs::as_string(node, source)),
+            "assignment_operand" |
+            "constant" => {
+                let txt = NodeFuncs::as_string(node, source);
+                if txt.to_uppercase().eq("NULL") {
+                    Operand::NULL
+                } else {
+                    Operand::CONST(txt)
+                }
+            },
+            "object_name" |
             "column" => Operand::COLUMN(NodeFuncs::as_string(node, source)),
             "assignment_tuple" => {
                 Operand::TUPLE(CassandraParser::parse_assignment_tuple(node, source))
@@ -2818,12 +3055,13 @@ impl CassandraParser {
             "assignment_set" => Operand::SET(CassandraParser::parse_assignment_set(node, source)),
             "function_args" => Operand::TUPLE(CassandraParser::parse_function_args(node, source)),
             "function_call" => Operand::FUNC(NodeFuncs::as_string(node, source)),
-            // TODO should this be unreachable()?
-            _ => Operand::CONST(NodeFuncs::as_string(node, source)),
+            _ => {
+                unreachable!()
+            }
         }
     }
 
-    // parses lists of option_hash_item or replication_list_item
+    /// parses lists of option_hash_item or replication_list_item
     fn parse_map(node: &Node, source: &str) -> Vec<(String, String)> {
         let mut cursor = node.walk();
 
@@ -2851,6 +3089,7 @@ impl CassandraParser {
         entries
     }
 
+    /// parse an assignment map.
     fn parse_assignment_map(node: &Node, source: &str) -> Vec<(String, String)> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2875,6 +3114,7 @@ impl CassandraParser {
         entries
     }
 
+    /// parse an assignment list
     fn parse_assignment_list(node: &Node, source: &str) -> Vec<String> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2892,6 +3132,7 @@ impl CassandraParser {
         entries
     }
 
+    /// parse an assignment set
     fn parse_assignment_set(node: &Node, source: &str) -> Vec<String> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2909,6 +3150,7 @@ impl CassandraParser {
         entries
     }
 
+    /// parse and assignment tuple
     fn parse_assignment_tuple(node: &Node, source: &str) -> Vec<Operand> {
         // ( expression, expression ... )
         let mut cursor = node.walk();
@@ -2919,6 +3161,7 @@ impl CassandraParser {
         CassandraParser::parse_expression_list(&cursor.node(), source)
     }
 
+    /// parse a `BEGIN BATCH` clause
     fn parse_begin_batch(node: &Node, source: &str) -> BeginBatch {
         let mut result = BeginBatch::new();
 
@@ -2943,6 +3186,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse a select statement
     pub fn parse_select_statement(node: &Node, source: &str) -> SelectStatementData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -3011,6 +3255,7 @@ impl CassandraParser {
         statement_data
     }
 
+    /// parse the where clause
     fn parse_where_spec(node: &Node, source: &str) -> Vec<RelationElement> {
         // (where_spec (relation_elements (relation_element (constant))))
         let mut result = vec![];
@@ -3033,6 +3278,7 @@ impl CassandraParser {
         result
     }
 
+    /// parse a relaiton element.
     fn parse_relation_element(node: &Node, source: &str) -> RelationElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -3071,7 +3317,7 @@ impl CassandraParser {
                 RelationElement {
                     obj: CassandraParser::parse_relation_value(&mut cursor, source),
                     oper: {
-                        // consumer the obj
+                        // consume the obj
                         cursor.goto_next_sibling();
                         CassandraParser::parse_operator(&mut cursor)
                     },
@@ -3103,6 +3349,7 @@ impl CassandraParser {
         }
     }
 
+    // Parse an Operator
     fn parse_operator(cursor: &mut TreeCursor) -> RelationOperator {
         let node = cursor.node();
         let kind = node.kind();
@@ -3121,6 +3368,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse a relation value
     fn parse_relation_value(cursor: &mut TreeCursor, source: &str) -> Operand {
         let node = cursor.node();
         let kind = node.kind();
@@ -3144,6 +3392,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse an order clause
     fn parse_order_spec(node: &Node, source: &str) -> Option<OrderClause> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -3164,6 +3413,7 @@ impl CassandraParser {
         })
     }
 
+    /// parse a select element
     fn parse_select_element(node: &Node, source: &str) -> SelectElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -3191,6 +3441,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse the standard drop specification.
     fn parse_standard_drop(node: &Node, source: &str) -> DropData {
         let mut cursor = node.walk();
         let mut if_exists = false;
@@ -3215,6 +3466,7 @@ impl CassandraParser {
         }
     }
 
+    /// parse a drop trigger statement.
     fn parse_drop_trigger(node: &Node, source: &str) -> DropTriggerData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -3293,15 +3545,25 @@ impl Display for CassandraStatement {
     }
 }
 
+/// Data for the create function statement
 #[derive(PartialEq, Debug, Clone)]
 pub struct FunctionData {
+    /// if specified the 'OR REPLACE' clause will be added.
     or_replace: bool,
+    /// if specified the 'NOT EXISTS' clause will be added.
     not_exists: bool,
+    /// the name of the function.
     name: String,
+    /// the parameters for the function.
     params: Vec<ColumnDefinition>,
+    /// if set the function should return `NULL`` when called with `NULL`` otherwise
+    /// the function should process the input.
     return_null: bool,
+    /// the data type the function returns.
     return_type: DataType,
+    /// the language the function is written in.
     language: String,
+    /// the code block containing the function
     code_block: String,
 }
 
@@ -3330,11 +3592,16 @@ impl Display for FunctionData {
     }
 }
 
+/// The definition of an index column type
 #[derive(PartialEq, Debug, Clone)]
 pub enum IndexColumnType {
+    /// column is a column
     Column(String),
+    /// use the keys from the column
     Keys(String),
+    /// use the entries from the column
     Entries(String),
+    /// use the full column entry.
     Full(String),
 }
 
@@ -3349,11 +3616,16 @@ impl Display for IndexColumnType {
     }
 }
 
+/// data to for the create index statement.
 #[derive(PartialEq, Debug, Clone)]
 pub struct IndexData {
+    /// only if not exists.
     if_not_exists: bool,
+    /// optional name of the index.
     name: Option<String>,
+    /// the table the index is on.
     table: String,
+    /// the index column type.
     column: IndexColumnType,
 }
 
@@ -3377,6 +3649,8 @@ impl Display for IndexData {
         )
     }
 }
+
+/// the list of privileges recognized by the system.
 #[derive(PartialEq, Debug, Clone)]
 pub enum Privilege {
     ALL,
@@ -3406,15 +3680,22 @@ impl Display for Privilege {
     }
 }
 
+/// A list of resource types recognized by the system
 #[derive(PartialEq, Debug, Clone)]
 pub enum Resource {
-    // optional keyspace
+    /// all the functins optionally within a keyspace
     AllFunctions(Option<String>),
+    /// all the keyspaces
     AllKeyspaces,
+    /// all the roles
     AllRoles,
+    /// the specific function.
     Function(String),
+    /// the specific keyspace
     Keyspace(String),
+    /// the specified role.
     Role(String),
+    /// the specified table.
     Table(String),
 }
 
@@ -3619,8 +3900,8 @@ mod tests {
             "SELECT column FROM table WHERE col = 0Xef",
             "SELECT column FROM table WHERE col = true",
             "SELECT column FROM table WHERE col = false",
-            "SELECT column FROM table WHERE col = null",
-            "SELECT column FROM table WHERE col = null AND col2 = 'jinx'",
+            "SELECT column FROM table WHERE col = NULL",
+            "SELECT column FROM table WHERE col = NULL AND col2 = 'jinx'",
             "SELECT column FROM table WHERE col = $$ a code's block $$",
             "SELECT column FROM table WHERE func(*) < 5",
             "SELECT column FROM table WHERE func(*) <= 'hello'",
@@ -3653,7 +3934,6 @@ mod tests {
         "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5);",
         "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
         "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
-        "INSERT INTO table VALUES ('hello', 5)",
         "INSERT INTO table (col1, col2) JSON $$ json code $$",
         "INSERT INTO table (col1, col2) VALUES ({ 5 : 6 }, 'foo')",
         "INSERT INTO table (col1, col2) VALUES ({ 5, 6 }, 'foo')",
@@ -3664,7 +3944,6 @@ mod tests {
         "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5)",
         "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
         "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
-        "INSERT INTO table VALUES ('hello', 5)",
         "INSERT INTO table (col1, col2) JSON $$ json code $$",
         "INSERT INTO table (col1, col2) VALUES ({5:6}, 'foo')",
         "INSERT INTO table (col1, col2) VALUES ({5, 6}, 'foo')",
