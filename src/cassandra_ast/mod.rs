@@ -7,7 +7,7 @@ use tree_sitter::{Node, Tree, TreeCursor};
 #[derive(PartialEq, Debug, Clone)]
 pub enum CassandraStatement {
     AlterKeyspace(KeyspaceData),
-    AlterMaterializedView,
+    AlterMaterializedView(AlterMaterializedViewData),
     AlterRole(RoleData),
     AlterTable(AlterTableData),
     AlterType(AlterTypeData),
@@ -17,7 +17,7 @@ pub enum CassandraStatement {
     CreateFunction(FunctionData),
     CreateIndex(IndexData),
     CreateKeyspace(KeyspaceData),
-    CreateMaterializedView,
+    CreateMaterializedView(CreateMaterializedViewData),
     CreateRole(RoleData),
     CreateTable(CreateTableData),
     CreateTrigger(TriggerData),
@@ -344,6 +344,7 @@ pub enum Operand {
     TUPLE(Vec<Operand>),
     COLUMN(String),
     FUNC(String),
+    NULL,
 }
 
 impl Display for Operand {
@@ -351,7 +352,7 @@ impl Display for Operand {
         match self {
             Operand::COLUMN(text) | Operand::FUNC(text) | Operand::CONST(text) => {
                 write!(f, "{}", text)
-            }
+            },
             Operand::MAP(entries) => {
                 let mut result = String::from('{');
                 result.push_str(
@@ -363,25 +364,26 @@ impl Display for Operand {
                 );
                 result.push('}');
                 write!(f, "{}", result)
-            }
+            },
             Operand::SET(values) => {
                 let mut result = String::from('{');
                 result.push_str(values.iter().join(", ").as_str());
                 result.push('}');
                 write!(f, "{}", result)
-            }
+            },
             Operand::LIST(values) => {
                 let mut result = String::from('[');
                 result.push_str(values.iter().join(", ").as_str());
                 result.push(']');
                 write!(f, "{}", result)
-            }
+            },
             Operand::TUPLE(values) => {
                 let mut result = String::from('(');
                 result.push_str(values.iter().join(", ").as_str());
                 result.push(')');
                 write!(f, "{}", result)
-            }
+            },
+            Operand::NULL => write!(f, "NULL"),
         }
     }
 }
@@ -583,6 +585,7 @@ pub enum RelationOperator {
     IN,
     CONTAINS,
     CONTAINS_KEY,
+    IS_NOT,
 }
 
 impl RelationOperator {
@@ -600,6 +603,7 @@ impl RelationOperator {
             RelationOperator::IN => false,
             RelationOperator::CONTAINS => false,
             RelationOperator::CONTAINS_KEY => false,
+            RelationOperator::IS_NOT => false,
         }
     }
 }
@@ -616,6 +620,7 @@ impl Display for RelationOperator {
             RelationOperator::IN => write!(f, "{}", "IN"),
             RelationOperator::CONTAINS => write!(f, "CONTAINS"),
             RelationOperator::CONTAINS_KEY => write!(f, "CONTAINS KEY"),
+            RelationOperator::IS_NOT => write!(f, "IS NOT"),
         }
     }
 }
@@ -713,7 +718,67 @@ impl Display for AlterTableOperation {
     }
 }
 
+#[derive(PartialEq, Debug, Clone)]
+pub struct AlterMaterializedViewData {
+    name : String,
+    with : WithElement,
+}
 
+impl Display for AlterMaterializedViewData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!( f, "ALTER MATERIALIZED VIEW {}{}",
+        self.name,
+            if self.with.is_empty() {
+                "".to_string()
+                    } else {
+                format!( " WITH {}",
+                self.with.iter().map( |x| x.to_string()).join(" AND "))
+            }
+        )
+    }
+}
+
+/*
+    /*
+    seq(
+                kw("ALTER"),
+                kw( "MATERIALIZED"),
+                kw( "VIEW"),
+                $.materialized_view_name,
+                optional( $.with_element),
+            ),
+     */
+
+ */
+#[derive(PartialEq, Debug, Clone)]
+pub struct CreateMaterializedViewData {
+    if_not_exists: bool,
+    name: String,
+    columns : Vec<String>,
+    table: String,
+    where_clause : Vec<RelationElement>,
+    key : PrimaryKey,
+    with :  WithElement,
+}
+
+impl Display for CreateMaterializedViewData {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CREATE MATERIALIZED VIEW {}{} AS SELECT {} FROM {} WHERE {} {}{}",
+            if self.if_not_exists {"IF NOT EXISTS "} else {""},
+            self.name,
+            self.columns.join( ", "),
+            self.table,
+            self.where_clause
+                    .iter()
+                    .join(" AND "),
+            self.key,
+               if self.with.is_empty() {"".to_string()} else {
+                   format!( " WITH {}",
+                            self.with.iter().map( |x| x.to_string() ).join(" AND "))
+               }
+        )
+    }
+}
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct CreateTableData {
@@ -1189,7 +1254,7 @@ impl CassandraStatement {
             "alter_keyspace" => CassandraStatement::AlterKeyspace(
                 CassandraParser::parse_keyspace_data(node, source),
             ),
-            "alter_materialized_view" => CassandraStatement::AlterMaterializedView,
+            "alter_materialized_view" => CassandraStatement::AlterMaterializedView(CassandraParser::parse_alter_materialized_view(node, source)),
             "alter_role" => {
                 CassandraStatement::AlterRole(CassandraParser::parse_role_data(node, source))
             }
@@ -1205,7 +1270,7 @@ impl CassandraStatement {
             "create_keyspace" => CassandraStatement::CreateKeyspace(
                 CassandraParser::parse_keyspace_data(node, source),
             ),
-            "create_materialized_view" => CassandraStatement::CreateMaterializedView,
+            "create_materialized_view" => CassandraStatement::CreateMaterializedView(CassandraParser::parse_create_materialized_vew( node, source )),
             "create_role" => {
                 CassandraStatement::CreateRole(CassandraParser::parse_role_data(node, source))
             }
@@ -1290,6 +1355,26 @@ impl CassandraStatement {
 
 struct CassandraParser {}
 impl CassandraParser {
+    fn parse_alter_materialized_view(node: &Node, source: &String) -> AlterMaterializedViewData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // consume ALTER
+        cursor.goto_next_sibling();
+        // consume MATERIALIZED
+        cursor.goto_next_sibling();
+        // consume VIEW
+        cursor.goto_next_sibling();
+        AlterMaterializedViewData {
+            name: CassandraParser::parse_table_name(&cursor.node(), source),
+            with:                 if cursor.goto_next_sibling() {
+                CassandraParser::parse_with_element( &cursor.node(), source)
+            } else {
+                vec!()
+            }
+
+        }
+
+    }
     fn parse_init_condition(node: &Node, source: &String) -> InitCondition {
         let mut cursor = node.walk();
         if cursor.node().kind().eq("init_cond_definition") {
@@ -1627,7 +1712,7 @@ impl CassandraParser {
                 let to = NodeFuncs::as_string(&cursor.node(), source);
                 AlterTableOperation::Rename((from, to))
             },
-            "alter_table_with" => AlterTableOperation::With(CassandraParser::parse_with_element( &cursor.node(), source)),
+            "with_element" => AlterTableOperation::With(CassandraParser::parse_with_element( &cursor.node(), source)),
             _ => unreachable!(),
         }
     }
@@ -1802,20 +1887,78 @@ impl CassandraParser {
         result
     }
 
+    fn parse_materialized_where(node: &Node, source: &String) -> Vec<RelationElement> {
+        let mut relations: Vec<RelationElement> = vec!();
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // consumer the WHERE
+        while cursor.goto_next_sibling() {
+            if cursor.node().kind().eq("column_not_null") {
+                cursor.goto_first_child();
+                relations.push( RelationElement {
+                    obj: Operand::COLUMN(NodeFuncs::as_string( &cursor.node(), source )),
+                    oper: RelationOperator::IS_NOT,
+                    value:  vec![Operand::NULL],
+                });
+                cursor.goto_parent();
+            }
+            if cursor.node().kind().eq("relation_element") {
+                relations.push( CassandraParser::parse_relation_element( &cursor.node(), source));
+            }
+        }
+        relations
+    }
+    fn parse_create_materialized_vew(node: &Node, source: &String) -> CreateMaterializedViewData {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // consume 'CREATE'
+        cursor.goto_next_sibling();
+        CreateMaterializedViewData{
+            if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
+            name: CassandraParser::parse_table_name(&cursor.node(), source),
+            columns: {
+                cursor.goto_next_sibling();
+                // consume 'AS'
+                cursor.goto_next_sibling();
+                // consume 'select'
+                cursor.goto_next_sibling();
+                let kind = cursor.node().kind();
+                CassandraParser::parse_column_list( &cursor.node(), source )
+            },
+            table: {
+                cursor.goto_next_sibling();
+                // consume 'FROM'
+                cursor.goto_next_sibling();
+                CassandraParser::parse_table_name(&cursor.node(), source)
+            },
+            where_clause: {
+                cursor.goto_next_sibling();
+                CassandraParser::parse_materialized_where( &cursor.node(), source)
+            },
+            key: {
+                cursor.goto_next_sibling();
+                CassandraParser::parse_primary_key_element(  &cursor.node(), source)
+            },
+            with: {
+                if cursor.goto_next_sibling() {
+                    CassandraParser::parse_with_element( &cursor.node(), source)
+                } else {
+                    vec!()
+                }
+            },
+        }
+    }
+
     fn parse_create_table(node: &Node, source: &String) -> CreateTableData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut result = CreateTableData {
             if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
-            name: {
-                cursor.goto_first_child();
-                CassandraParser::parse_dotted_name(&mut cursor, source)
-            },
+            name: CassandraParser::parse_table_name(&cursor.node(), source),
             columns: vec!(),
             key: None,
             with: vec!(),
         };
-        cursor.goto_parent();
         while cursor.goto_next_sibling() {
             match cursor.node().kind() {
                 "column_definition_list" => {
@@ -2582,6 +2725,7 @@ impl CassandraParser {
             "assignment_set" => Operand::SET(CassandraParser::parse_assignment_set(node, source)),
             "function_args" => Operand::TUPLE(CassandraParser::parse_function_args(node, source)),
             "function_call" => Operand::FUNC(NodeFuncs::as_string(node, &source)),
+            // TODO should this be unreachable()?
             _ => Operand::CONST(NodeFuncs::as_string(node, source)),
         }
     }
@@ -3009,7 +3153,7 @@ impl ToString for CassandraStatement {
         let unimplemented = String::from("Unimplemented");
         match self {
             CassandraStatement::AlterKeyspace(keyspace_data) => format!("ALTER {}", keyspace_data),
-            CassandraStatement::AlterMaterializedView => unimplemented,
+            CassandraStatement::AlterMaterializedView(alter_data) => alter_data.to_string(),
             CassandraStatement::AlterRole(role_data) => format!("ALTER {}", role_data),
             CassandraStatement::AlterTable(table_data) => format!( "ALTER TABLE {} {}", table_data.name, table_data.operation ),
             CassandraStatement::AlterType(alter_type_data) => alter_type_data.to_string(),
@@ -3021,7 +3165,7 @@ impl ToString for CassandraStatement {
             CassandraStatement::CreateKeyspace(keyspace_data) => {
                 format!("CREATE {}", keyspace_data)
             }
-            CassandraStatement::CreateMaterializedView => unimplemented,
+            CassandraStatement::CreateMaterializedView(view_data) => view_data.to_string(),
             CassandraStatement::CreateRole(role_data) => format!("CREATE {}", role_data),
             CassandraStatement::CreateTable(table_data) => format!("CREATE TABLE {}", table_data),
             CassandraStatement::CreateTrigger(trigger_data) => trigger_data.to_string(),
@@ -3427,7 +3571,7 @@ fn test_delete_statements() {
 
 #[test]
 fn x() {
-    let qry = "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (key1:(5, 7, 9), key2:(2, 4, 6))";
+    let qry = "CREATE MATERIALIZED VIEW view AS SELECT col1, col2 FROM tbl WHERE col3 IS NOT NULL PRIMARY KEY (col1)";
     let ast = CassandraAST::new(qry.to_string());
     let stmt = ast.statement;
     let stmt_str = stmt.to_string();
@@ -3437,12 +3581,8 @@ fn x() {
 #[test]
 fn test_get_statement_type() {
     let stmts = [
-        "ALTER MATERIALIZED VIEW 'keyspace'.mview;",
-        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC);",
         "Not a valid statement"];
     let types = [
-        CassandraStatement::AlterMaterializedView,
-        CassandraStatement::CreateMaterializedView,
         CassandraStatement::UNKNOWN("Not a valid statement".to_string()),
     ];
 
@@ -4155,4 +4295,49 @@ fn test_alter_type() {
         ];
         test_parsing(&expected, &stmts);
     }
+
+    #[test]
+    fn test_create_materialized_view() {
+        let stmts = [
+            "CREATE MATERIALIZED VIEW view AS SELECT col1, col2 FROM tbl WHERE col3 IS NOT NULL PRIMARY KEY (col1);",
+            "CREATE MATERIALIZED VIEW IF NOT EXISTS keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1) WITH option1 = 'option';",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1) WITH option1 = 'option' AND CLUSTERING ORDER BY (col2 DESC);",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC);",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH CLUSTERING ORDER BY (col2 DESC);",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5;",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1);",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL PRIMARY KEY (col1,col2)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2, col3  FROM keyspace.table  WHERE col1 IS NOT NULL AND col4 IS NOT NULL PRIMARY KEY (col1, col4) WITH caching = { 'keys' : 'ALL', 'rows_per_partition' : '100' } AND comment = 'Based on table' ;",
+        ];
+        let expected = [
+            "CREATE MATERIALIZED VIEW view AS SELECT col1, col2 FROM tbl WHERE col3 IS NOT NULL PRIMARY KEY (col1)",
+            "CREATE MATERIALIZED VIEW IF NOT EXISTS keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1)",
+            "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1) WITH option1 = 'option'",
+            "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1) WITH option1 = 'option' AND CLUSTERING ORDER BY (col2 DESC)",
+            "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH CLUSTERING ORDER BY (col2 DESC)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL PRIMARY KEY (col1, col2)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2, col3 FROM keyspace.table WHERE col1 IS NOT NULL AND col4 IS NOT NULL PRIMARY KEY (col1, col4) WITH caching = {'keys':'ALL', 'rows_per_partition':'100'} AND comment = 'Based on table'",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_alter_materialized_view() {
+        let stmts = [
+            "ALTER MATERIALIZED VIEW 'keyspace'.mview;",
+"ALTER MATERIALIZED VIEW mview;",
+"ALTER MATERIALIZED VIEW keyspace.mview WITH option1 = 'option' AND option2 = 3.5;",
+        ];
+        let expected = [
+            "ALTER MATERIALIZED VIEW 'keyspace'.mview",
+            "ALTER MATERIALIZED VIEW mview",
+            "ALTER MATERIALIZED VIEW keyspace.mview WITH option1 = 'option' AND option2 = 3.5",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
 }
