@@ -1,7 +1,5 @@
 use itertools::Itertools;
-use regex::Regex;
 use std::fmt::{Display, Formatter};
-use std::ops::Index;
 use tree_sitter::{Node, Tree, TreeCursor};
 
 #[derive(PartialEq, Debug, Clone)]
@@ -253,6 +251,11 @@ pub struct BeginBatch {
     unlogged: bool,
     timestamp: Option<u64>,
 }
+impl Default for BeginBatch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl BeginBatch {
     pub fn new() -> BeginBatch {
@@ -263,6 +266,7 @@ impl BeginBatch {
         }
     }
 }
+
 impl Display for BeginBatch {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let modifiers = if self.logged {
@@ -371,14 +375,15 @@ impl SelectStatementData {
     pub fn select_names(&self) -> Vec<String> {
         self.elements
             .iter()
-            .map(|e| match e {
-                SelectElement::STAR => None,
-                SelectElement::DOT_STAR(_) => None,
-                SelectElement::COLUMN(named) => Some(named.name.clone()),
-                SelectElement::FUNCTION(_) => None,
-            })
-            .filter(|e| e.is_some())
-            .map(|e| e.unwrap())
+            .filter(|e| match e {
+                SelectElement::Star => false,
+                SelectElement::DotStar(_) => false,
+                SelectElement::Column(_) => true,
+                SelectElement::Function(_) => false,
+            }).map(|e| match e {
+            SelectElement::Column(named) => named.to_string(),
+            _ => unreachable!()
+        } )
             .collect()
     }
 
@@ -388,7 +393,7 @@ impl SelectStatementData {
         self.elements
             .iter()
             .map(|e| match e {
-                SelectElement::COLUMN(named) => {
+                SelectElement::Column(named) => {
                     if named.alias.is_some() {
                         named.alias.clone()
                         //Some(named.alias..as_ref().unwrap().clone())
@@ -438,18 +443,18 @@ impl Display for SelectStatementData {
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum SelectElement {
-    STAR,
-    DOT_STAR(String),
-    COLUMN(Named),
-    FUNCTION(Named),
+    Star,
+    DotStar(String),
+    Column(Named),
+    Function(Named),
 }
 
 impl Display for SelectElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            SelectElement::STAR => write!(f, "{}", "*"),
-            SelectElement::DOT_STAR(column) => column.fmt(f),
-            SelectElement::COLUMN(named) | SelectElement::FUNCTION(named) => named.fmt(f),
+            SelectElement::Star => write!(f, "*"),
+            SelectElement::DotStar(column) => write!(f, "{}.*", column ),
+            SelectElement::Column(named) | SelectElement::Function(named) => write!(f, "{}", named ),
         }
     }
 }
@@ -532,9 +537,9 @@ pub enum RelationOperator {
     GE,
     GT,
     IN,
-    CONTAINS,
-    CONTAINS_KEY,
-    IS_NOT,
+    Contains,
+    ContainsKey,
+    IsNot,
 }
 
 impl RelationOperator {
@@ -550,9 +555,9 @@ impl RelationOperator {
             RelationOperator::GE => left.ge(right),
             RelationOperator::GT => left.gt(right),
             RelationOperator::IN => false,
-            RelationOperator::CONTAINS => false,
-            RelationOperator::CONTAINS_KEY => false,
-            RelationOperator::IS_NOT => false,
+            RelationOperator::Contains => false,
+            RelationOperator::ContainsKey => false,
+            RelationOperator::IsNot => false,
         }
     }
 }
@@ -560,16 +565,16 @@ impl RelationOperator {
 impl Display for RelationOperator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            RelationOperator::LT => write!(f, "{}", "<"),
-            RelationOperator::LE => write!(f, "{}", "<="),
-            RelationOperator::EQ => write!(f, "{}", "="),
-            RelationOperator::NE => write!(f, "{}", "<>"),
-            RelationOperator::GE => write!(f, "{}", ">="),
-            RelationOperator::GT => write!(f, "{}", ">"),
-            RelationOperator::IN => write!(f, "{}", "IN"),
-            RelationOperator::CONTAINS => write!(f, "CONTAINS"),
-            RelationOperator::CONTAINS_KEY => write!(f, "CONTAINS KEY"),
-            RelationOperator::IS_NOT => write!(f, "IS NOT"),
+            RelationOperator::LT => write!(f, "<"),
+            RelationOperator::LE => write!(f, "<="),
+            RelationOperator::EQ => write!(f, "="),
+            RelationOperator::NE => write!(f, "<>"),
+            RelationOperator::GE => write!(f, ">="),
+            RelationOperator::GT => write!(f, ">"),
+            RelationOperator::IN => write!(f, "IN"),
+            RelationOperator::Contains => write!(f, "CONTAINS"),
+            RelationOperator::ContainsKey => write!(f, "CONTAINS KEY"),
+            RelationOperator::IsNot => write!(f, "IS NOT"),
         }
     }
 }
@@ -582,6 +587,12 @@ pub struct StatementModifiers {
     pub filtering: bool,
     pub not_exists: bool,
     pub exists: bool,
+}
+
+impl Default for StatementModifiers {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl StatementModifiers {
@@ -675,10 +686,10 @@ impl Display for AlterTableOperation {
             AlterTableOperation::DropColumns(columns) => write!(f, "DROP {}", columns.join(", ")),
             AlterTableOperation::DropCompactStorage => write!(f, "DROP COMPACT STORAGE"),
             AlterTableOperation::Rename((from, to)) => write!(f, "RENAME {} TO {}", from, to),
-            AlterTableOperation::With(withElement) => write!(
+            AlterTableOperation::With(with_element) => write!(
                 f,
                 "WITH {}",
-                withElement.iter().map(|x| x.to_string()).join(" AND ")
+                with_element.iter().map(|x| x.to_string()).join(" AND ")
             ),
         }
     }
@@ -956,26 +967,24 @@ impl Display for PrimaryKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.partition.is_empty() && self.clustering.is_empty() {
             write!(f, "")
-        } else {
-            if self.partition.len() == 1 {
-                if self.clustering.is_empty() {
-                    write!(f, "PRIMARY KEY ({})", self.partition.get(0).unwrap())
-                } else {
-                    write!(
-                        f,
-                        "PRIMARY KEY ({}, {})",
-                        self.partition.get(0).unwrap(),
-                        self.clustering.join(", ")
-                    )
-                }
+        } else if self.partition.len() == 1 {
+            if self.clustering.is_empty() {
+                write!(f, "PRIMARY KEY ({})", self.partition.get(0).unwrap())
             } else {
                 write!(
                     f,
-                    "PRIMARY KEY (({}), {})",
-                    self.partition.join(", "),
+                    "PRIMARY KEY ({}, {})",
+                    self.partition.get(0).unwrap(),
                     self.clustering.join(", ")
                 )
             }
+        } else {
+            write!(
+                f,
+                "PRIMARY KEY (({}), {})",
+                self.partition.join(", "),
+                self.clustering.join(", ")
+            )
         }
     }
 }
@@ -1249,11 +1258,11 @@ impl DropData {
 struct NodeFuncs {}
 
 impl NodeFuncs {
-    pub fn as_string(node: &Node, source: &String) -> String {
+    pub fn as_string(node: &Node, source: &str) -> String {
         node.utf8_text(source.as_bytes()).unwrap().to_string()
     }
 
-    pub fn as_boolean(node: &Node, source: &String) -> bool {
+    pub fn as_boolean(node: &Node, source: &str) -> bool {
         NodeFuncs::as_string(node, source).to_uppercase().eq("TRUE")
     }
 }
@@ -1615,26 +1624,6 @@ impl CassandraParser {
                 NodeFuncs::as_string(&cursor.node(), source)
             },
         }
-
-        /* seq(
-                   kw("CREATE"),
-                   optional( or_replace ),
-                   kw( "FUNCTION"),
-                   optional( if_not_exists ),
-                   $.function_name,
-                   "(",
-                   optional( commaSep1( $.typed_name ) ),
-                   ")",
-                   $.return_mode,
-                   kw( "RETURNS"),
-                   $.data_type,
-                   kw("LANGUAGE"),
-                   alias( $.object_name, "language"),
-                   kw( "AS"),
-                   $._code_block,
-               ),
-
-        */
     }
 
     fn parse_alter_type(node: &Node, source: &String) -> AlterTypeData {
@@ -1849,7 +1838,6 @@ impl CassandraParser {
                                         }
                                         process = cursor.goto_next_sibling();
                                     }
-                                    process = true;
                                     cursor.goto_parent();
                                 }
                                 "clustering_key_list" => {
@@ -1990,7 +1978,7 @@ impl CassandraParser {
                 cursor.goto_first_child();
                 relations.push(RelationElement {
                     obj: Operand::COLUMN(NodeFuncs::as_string(&cursor.node(), source)),
-                    oper: RelationOperator::IS_NOT,
+                    oper: RelationOperator::IsNot,
                     value: vec![Operand::NULL],
                 });
                 cursor.goto_parent();
@@ -2018,7 +2006,6 @@ impl CassandraParser {
                 cursor.goto_next_sibling();
                 // consume 'select'
                 cursor.goto_next_sibling();
-                let kind = cursor.node().kind();
                 CassandraParser::parse_column_list(&cursor.node(), source)
             },
             table: {
@@ -2189,36 +2176,36 @@ impl CassandraParser {
                             cursor.goto_next_sibling();
                             // consume 'KEYSPACE'
                             cursor.goto_next_sibling();
-                            Resource::ALL_FUNCTIONS(Some(NodeFuncs::as_string(
+                            Resource::AllFunctions(Some(NodeFuncs::as_string(
                                 &cursor.node(),
                                 source,
                             )))
                         } else {
-                            Resource::ALL_FUNCTIONS(None)
+                            Resource::AllFunctions(None)
                         }
                     }
-                    "KEYSPACES" => Resource::ALL_KEYSPACES,
-                    "ROLES" => Resource::ALL_ROLES,
+                    "KEYSPACES" => Resource::AllKeyspaces,
+                    "ROLES" => Resource::AllRoles,
                     _ => unreachable!(),
                 }
             }
             "FUNCTION" => {
                 cursor.goto_next_sibling();
-                Resource::FUNCTION(CassandraParser::parse_dotted_name(&mut cursor, source))
+                Resource::Function(CassandraParser::parse_dotted_name(&mut cursor, source))
             }
             "KEYSPACE" => {
                 cursor.goto_next_sibling();
-                Resource::KEYSPACE(NodeFuncs::as_string(&cursor.node(), source))
+                Resource::Keyspace(NodeFuncs::as_string(&cursor.node(), source))
             }
             "ROLE" => {
                 cursor.goto_next_sibling();
-                Resource::ROLE(NodeFuncs::as_string(&cursor.node(), source))
+                Resource::Role(NodeFuncs::as_string(&cursor.node(), source))
             }
             "TABLE" => {
                 cursor.goto_next_sibling();
-                Resource::TABLE(CassandraParser::parse_dotted_name(&mut cursor, source))
+                Resource::Table(CassandraParser::parse_dotted_name(&mut cursor, source))
             }
-            _ => Resource::TABLE(CassandraParser::parse_dotted_name(&mut cursor, source)),
+            _ => Resource::Table(CassandraParser::parse_dotted_name(&mut cursor, source)),
         }
     }
 
@@ -2987,7 +2974,7 @@ impl CassandraParser {
                                         &source,
                                     ))
                             }
-                            "*" => statement_data.elements.push(SelectElement::STAR),
+                            "*" => statement_data.elements.push(SelectElement::Star),
                             _ => {}
                         }
                         process = cursor.goto_next_sibling();
@@ -3057,7 +3044,7 @@ impl CassandraParser {
                 cursor.goto_first_child();
                 RelationElement {
                     obj: Operand::COLUMN(NodeFuncs::as_string(&cursor.node(), source)),
-                    oper: RelationOperator::CONTAINS_KEY,
+                    oper: RelationOperator::ContainsKey,
                     value: {
                         // consume column value
                         cursor.goto_next_sibling();
@@ -3075,7 +3062,7 @@ impl CassandraParser {
                 cursor.goto_first_child();
                 RelationElement {
                     obj: Operand::COLUMN(NodeFuncs::as_string(&cursor.node(), source)),
-                    oper: RelationOperator::CONTAINS,
+                    oper: RelationOperator::Contains,
                     value: {
                         // consume column value
                         cursor.goto_next_sibling();
@@ -3202,15 +3189,15 @@ impl CassandraParser {
             None
         };
         match type_.kind() {
-            "column" => SelectElement::COLUMN(Named {
+            "column" => SelectElement::Column(Named {
                 name: NodeFuncs::as_string(&type_, source),
                 alias,
             }),
-            "function_call" => SelectElement::FUNCTION(Named {
+            "function_call" => SelectElement::Function(Named {
                 name: NodeFuncs::as_string(&type_, source),
                 alias,
             }),
-            _ => SelectElement::DOT_STAR(NodeFuncs::as_string(&type_, source)),
+            _ => SelectElement::DotStar(NodeFuncs::as_string(&type_, source)),
         }
     }
 
@@ -3432,31 +3419,31 @@ impl Display for Privilege {
 #[derive(PartialEq, Debug, Clone)]
 pub enum Resource {
     // optional keyspace
-    ALL_FUNCTIONS(Option<String>),
-    ALL_KEYSPACES,
-    ALL_ROLES,
-    FUNCTION(String),
-    KEYSPACE(String),
-    ROLE(String),
-    TABLE(String),
+    AllFunctions(Option<String>),
+    AllKeyspaces,
+    AllRoles,
+    Function(String),
+    Keyspace(String),
+    Role(String),
+    Table(String),
 }
 
 impl Display for Resource {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Resource::ALL_FUNCTIONS(str) => {
+            Resource::AllFunctions(str) => {
                 if str.is_some() {
                     write!(f, "ALL FUNCTIONS IN KEYSPACE {}", str.as_ref().unwrap())
                 } else {
                     write!(f, "ALL FUNCTIONS")
                 }
             }
-            Resource::ALL_KEYSPACES => write!(f, "ALL KEYSPACES"),
-            Resource::ALL_ROLES => write!(f, "ALL ROLES"),
-            Resource::FUNCTION(func) => write!(f, "FUNCTION {}", func),
-            Resource::KEYSPACE(keyspace) => write!(f, "KEYSPACE {}", keyspace),
-            Resource::ROLE(role) => write!(f, "ROLE {}", role),
-            Resource::TABLE(table) => write!(f, "TABLE {}", table),
+            Resource::AllKeyspaces => write!(f, "ALL KEYSPACES"),
+            Resource::AllRoles => write!(f, "ALL ROLES"),
+            Resource::Function(func) => write!(f, "FUNCTION {}", func),
+            Resource::Keyspace(keyspace) => write!(f, "KEYSPACE {}", keyspace),
+            Resource::Role(role) => write!(f, "ROLE {}", role),
+            Resource::Table(table) => write!(f, "TABLE {}", table),
         }
     }
 }
@@ -3567,7 +3554,7 @@ impl CassandraAST {
 
 #[cfg(test)]
 mod tests {
-    use crate::cassandra_ast::{CassandraAST, CassandraStatement};
+    use crate::cassandra_ast::{CassandraAST, CassandraStatement, Named, SelectElement};
 
     fn test_parsing(expected: &[&str], statements: &[&str]) {
         for i in 0..statements.len() {
@@ -4483,4 +4470,15 @@ mod tests {
         ];
         test_parsing(&expected, &stmts);
     }
+
+    #[test]
+    fn test_select_element_display() {
+        assert_eq!( "*", SelectElement::Star.to_string());
+        assert_eq!( "col.*", SelectElement::DotStar("col".to_string()).to_string());
+        assert_eq!( "col", SelectElement::Column(Named{ name: "col".to_string(), alias: None }).to_string());
+        assert_eq!( "func", SelectElement::Function(Named{ name: "func".to_string(), alias: None }).to_string());
+        assert_eq!( "col AS alias", SelectElement::Column(Named{ name: "col".to_string(), alias: Some("alias".to_string()) }).to_string());
+        assert_eq!( "func AS alias", SelectElement::Function(Named{ name: "func".to_string(), alias: Some("alias".to_string()) }).to_string());
+    }
+
 }
