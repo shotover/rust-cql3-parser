@@ -1267,7 +1267,7 @@ impl NodeFuncs {
     }
 }
 impl CassandraStatement {
-    pub fn from_tree(tree: &Tree, source: &String) -> CassandraStatement {
+    pub fn from_tree(tree: &Tree, source: &str) -> CassandraStatement {
         let mut node = tree.root_node();
         if node.kind().eq("source_file") {
             node = node.child(0).unwrap();
@@ -1275,7 +1275,7 @@ impl CassandraStatement {
         CassandraStatement::from_node(&node, source)
     }
 
-    pub fn from_node(node: &Node, source: &String) -> CassandraStatement {
+    pub fn from_node(node: &Node, source: &str) -> CassandraStatement {
         match node.kind() {
             "alter_keyspace" => CassandraStatement::AlterKeyspace(
                 CassandraParser::parse_keyspace_data(node, source),
@@ -1327,55 +1327,55 @@ impl CassandraStatement {
                 CassandraStatement::CreateUser(CassandraParser::parse_user_data(node, source))
             }
             "delete_statement" => CassandraStatement::DeleteStatement(
-                CassandraParser::build_delete_statement(node, source),
+                CassandraParser::parse_delete_statement(node, source),
             ),
             "drop_aggregate" => CassandraStatement::DropAggregate(
-                CassandraParser::parse_standard_drop(&node, source),
+                CassandraParser::parse_standard_drop(node, source),
             ),
             "drop_function" => CassandraStatement::DropFunction(
-                CassandraParser::parse_standard_drop(&node, source),
+                CassandraParser::parse_standard_drop(node, source),
             ),
             "drop_index" => {
-                CassandraStatement::DropIndex(CassandraParser::parse_standard_drop(&node, source))
+                CassandraStatement::DropIndex(CassandraParser::parse_standard_drop(node, source))
             }
             "drop_keyspace" => CassandraStatement::DropKeyspace(
-                CassandraParser::parse_standard_drop(&node, source),
+                CassandraParser::parse_standard_drop(node, source),
             ),
             "drop_materialized_view" => CassandraStatement::DropMaterializedView(
-                CassandraParser::parse_standard_drop(&node, source),
+                CassandraParser::parse_standard_drop(node, source),
             ),
             "drop_role" => {
-                CassandraStatement::DropRole(CassandraParser::parse_standard_drop(&node, source))
+                CassandraStatement::DropRole(CassandraParser::parse_standard_drop(node, source))
             }
             "drop_table" => {
-                CassandraStatement::DropTable(CassandraParser::parse_standard_drop(&node, source))
+                CassandraStatement::DropTable(CassandraParser::parse_standard_drop(node, source))
             }
             "drop_trigger" => {
-                CassandraStatement::DropTrigger(CassandraParser::parse_drop_trigger(&node, source))
+                CassandraStatement::DropTrigger(CassandraParser::parse_drop_trigger(node, source))
             }
             "drop_type" => {
-                CassandraStatement::DropType(CassandraParser::parse_standard_drop(&node, source))
+                CassandraStatement::DropType(CassandraParser::parse_standard_drop(node, source))
             }
             "drop_user" => {
-                CassandraStatement::DropUser(CassandraParser::parse_standard_drop(&node, source))
+                CassandraStatement::DropUser(CassandraParser::parse_standard_drop(node, source))
             }
             "grant" => {
-                CassandraStatement::Grant(CassandraParser::parse_privilege_data(&node, source))
+                CassandraStatement::Grant(CassandraParser::parse_privilege_data(node, source))
             }
             "insert_statement" => CassandraStatement::InsertStatement(
-                CassandraParser::build_insert_statement(node, source),
+                CassandraParser::parse_insert_statement(node, source),
             ),
             "list_permissions" => CassandraStatement::ListPermissions(
-                CassandraParser::parse_privilege_data(&node, source),
+                CassandraParser::parse_privilege_data(node, source),
             ),
             "list_roles" => {
-                CassandraStatement::ListRoles(CassandraParser::parse_list_role_data(&node, source))
+                CassandraStatement::ListRoles(CassandraParser::parse_list_role_data(node, source))
             }
             "revoke" => {
-                CassandraStatement::Revoke(CassandraParser::parse_privilege_data(&node, source))
+                CassandraStatement::Revoke(CassandraParser::parse_privilege_data(node, source))
             }
             "select_statement" => CassandraStatement::SelectStatement(
-                CassandraParser::build_select_statement(node, source),
+                CassandraParser::parse_select_statement(node, source),
             ),
             "truncate" => {
                 let mut cursor = node.walk();
@@ -1390,7 +1390,7 @@ impl CassandraStatement {
                 ))
             }
             "update" => {
-                CassandraStatement::Update(CassandraParser::build_update_statement(node, source))
+                CassandraStatement::Update(CassandraParser::parse_update_statement(node, source))
             }
             "use" => {
                 let mut cursor = node.walk();
@@ -1404,14 +1404,14 @@ impl CassandraStatement {
                     )
                 }
             }
-            _ => CassandraStatement::UNKNOWN(source.clone()),
+            _ => CassandraStatement::UNKNOWN(source.to_string()),
         }
     }
 }
 
 struct CassandraParser {}
 impl CassandraParser {
-    fn parse_alter_materialized_view(node: &Node, source: &String) -> AlterMaterializedViewData {
+    fn parse_alter_materialized_view(node: &Node, source: &str) -> AlterMaterializedViewData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume ALTER
@@ -1429,7 +1429,7 @@ impl CassandraParser {
             },
         }
     }
-    fn parse_init_condition(node: &Node, source: &String) -> InitCondition {
+    fn parse_init_condition(node: &Node, source: &str) -> InitCondition {
         let mut cursor = node.walk();
         if cursor.node().kind().eq("init_cond_definition") {
             cursor.goto_first_child();
@@ -1484,7 +1484,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_aggregate_data(node: &Node, source: &String) -> AggregateData {
+    fn parse_aggregate_data(node: &Node, source: &str) -> AggregateData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
@@ -1551,7 +1551,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_function_data(node: &Node, source: &String) -> FunctionData {
+    fn parse_function_data(node: &Node, source: &str) -> FunctionData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
@@ -1626,7 +1626,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_alter_type(node: &Node, source: &String) -> AlterTypeData {
+    fn parse_alter_type(node: &Node, source: &str) -> AlterTypeData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'ALTER'
@@ -1692,7 +1692,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_type_data(node: &Node, source: &String) -> TypeData {
+    fn parse_type_data(node: &Node, source: &str) -> TypeData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut result = TypeData {
@@ -1713,7 +1713,7 @@ impl CassandraParser {
         result
     }
 
-    fn parse_trigger_data(node: &Node, source: &String) -> TriggerData {
+    fn parse_trigger_data(node: &Node, source: &str) -> TriggerData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         TriggerData {
@@ -1728,7 +1728,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_alter_table_operation(node: &Node, source: &String) -> AlterTableOperation {
+    fn parse_alter_table_operation(node: &Node, source: &str) -> AlterTableOperation {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         match cursor.node().kind() {
@@ -1777,7 +1777,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_alter_table(node: &Node, source: &String) -> AlterTableData {
+    fn parse_alter_table(node: &Node, source: &str) -> AlterTableData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'ALTER'
@@ -1793,7 +1793,7 @@ impl CassandraParser {
             },
         }
     }
-    fn parse_primary_key_element(node: &Node, source: &String) -> PrimaryKey {
+    fn parse_primary_key_element(node: &Node, source: &str) -> PrimaryKey {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut primary_key = PrimaryKey {
@@ -1865,7 +1865,7 @@ impl CassandraParser {
         }
         primary_key
     }
-    fn parse_data_type(node: &Node, source: &String) -> DataType {
+    fn parse_data_type(node: &Node, source: &str) -> DataType {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // extracting the name works because it is limited to a single child item so the text is correct
@@ -1888,7 +1888,7 @@ impl CassandraParser {
         }
         result
     }
-    fn parse_column_definition(node: &Node, source: &String) -> ColumnDefinition {
+    fn parse_column_definition(node: &Node, source: &str) -> ColumnDefinition {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         ColumnDefinition {
@@ -1901,7 +1901,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_table_options(node: &Node, source: &String) -> Vec<WithItem> {
+    fn parse_table_options(node: &Node, source: &str) -> Vec<WithItem> {
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
         let mut result: Vec<WithItem> = vec![];
@@ -1948,7 +1948,7 @@ impl CassandraParser {
                     // consume '('
                     cursor.goto_next_sibling();
                     result.push(WithItem::ClusterOrder(OrderClause {
-                        name: NodeFuncs::as_string(&cursor.node(), &source),
+                        name: NodeFuncs::as_string(&cursor.node(), source),
                         desc: {
                             // consume the name
                             if cursor.goto_next_sibling() {
@@ -1968,7 +1968,7 @@ impl CassandraParser {
         result
     }
 
-    fn parse_materialized_where(node: &Node, source: &String) -> Vec<RelationElement> {
+    fn parse_materialized_where(node: &Node, source: &str) -> Vec<RelationElement> {
         let mut relations: Vec<RelationElement> = vec![];
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -1992,7 +1992,7 @@ impl CassandraParser {
         }
         relations
     }
-    fn parse_create_materialized_vew(node: &Node, source: &String) -> CreateMaterializedViewData {
+    fn parse_create_materialized_vew(node: &Node, source: &str) -> CreateMaterializedViewData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
@@ -2032,7 +2032,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_create_table(node: &Node, source: &String) -> CreateTableData {
+    fn parse_create_table(node: &Node, source: &str) -> CreateTableData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut result = CreateTableData {
@@ -2075,7 +2075,7 @@ impl CassandraParser {
         result
     }
 
-    fn parse_with_element(node: &Node, source: &String) -> WithElement {
+    fn parse_with_element(node: &Node, source: &str) -> WithElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         while cursor.goto_next_sibling() {
@@ -2085,7 +2085,7 @@ impl CassandraParser {
         }
         vec![]
     }
-    fn parse_index_data(node: &Node, source: &String) -> IndexData {
+    fn parse_index_data(node: &Node, source: &str) -> IndexData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut result = IndexData {
@@ -2143,7 +2143,7 @@ impl CassandraParser {
         }
         result
     }
-    fn parse_list_role_data(node: &Node, source: &String) -> ListRoleData {
+    fn parse_list_role_data(node: &Node, source: &str) -> ListRoleData {
         let mut cursor = node.walk();
         let mut result = ListRoleData {
             of: None,
@@ -2163,7 +2163,7 @@ impl CassandraParser {
         result
     }
 
-    fn parse_resource(node: &Node, source: &String) -> Resource {
+    fn parse_resource(node: &Node, source: &str) -> Resource {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         match cursor.node().kind() {
@@ -2209,7 +2209,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_role_data(node: &Node, source: &String) -> RoleData {
+    fn parse_role_data(node: &Node, source: &str) -> RoleData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
@@ -2226,45 +2226,42 @@ impl CassandraParser {
             cursor.goto_first_child();
             // consume "WITH"
             while cursor.goto_next_sibling() {
-                match cursor.node().kind() {
-                    "role_with_option" => {
-                        cursor.goto_first_child();
-                        match cursor.node().kind() {
-                            "PASSWORD" => {
-                                cursor.goto_next_sibling();
-                                // consume the '='
-                                cursor.goto_next_sibling();
-                                result.password =
-                                    Some(NodeFuncs::as_string(&cursor.node(), source));
-                                cursor.goto_next_sibling();
-                            }
-                            "LOGIN" => {
-                                cursor.goto_next_sibling();
-                                // consume the '='
-                                cursor.goto_next_sibling();
-                                result.login = Some(NodeFuncs::as_boolean(&cursor.node(), source));
-                                cursor.goto_next_sibling();
-                            }
-                            "SUPERUSER" => {
-                                cursor.goto_next_sibling();
-                                // consume the '='
-                                cursor.goto_next_sibling();
-                                result.superuser =
-                                    Some(NodeFuncs::as_boolean(&cursor.node(), source));
-                                cursor.goto_next_sibling();
-                            }
-                            "OPTIONS" => {
-                                cursor.goto_next_sibling();
-                                // consume the '='
-                                cursor.goto_next_sibling();
-                                result.options = CassandraParser::parse_map(&cursor.node(), source);
-                                cursor.goto_next_sibling();
-                            }
-                            _ => unreachable!(),
+                if cursor.node().kind().eq("role_with_option") {
+                    cursor.goto_first_child();
+                    match cursor.node().kind() {
+                        "PASSWORD" => {
+                            cursor.goto_next_sibling();
+                            // consume the '='
+                            cursor.goto_next_sibling();
+                            result.password =
+                                Some(NodeFuncs::as_string(&cursor.node(), source));
+                            cursor.goto_next_sibling();
                         }
-                        cursor.goto_parent();
+                        "LOGIN" => {
+                            cursor.goto_next_sibling();
+                            // consume the '='
+                            cursor.goto_next_sibling();
+                            result.login = Some(NodeFuncs::as_boolean(&cursor.node(), source));
+                            cursor.goto_next_sibling();
+                        }
+                        "SUPERUSER" => {
+                            cursor.goto_next_sibling();
+                            // consume the '='
+                            cursor.goto_next_sibling();
+                            result.superuser =
+                                Some(NodeFuncs::as_boolean(&cursor.node(), source));
+                            cursor.goto_next_sibling();
+                        }
+                        "OPTIONS" => {
+                            cursor.goto_next_sibling();
+                            // consume the '='
+                            cursor.goto_next_sibling();
+                            result.options = CassandraParser::parse_map(&cursor.node(), source);
+                            cursor.goto_next_sibling();
+                        }
+                        _ => unreachable!(),
                     }
-                    _ => {}
+                    cursor.goto_parent();
                 }
             }
         }
@@ -2305,7 +2302,7 @@ impl CassandraParser {
         if_exists
     }
 
-    fn parse_keyspace_data(node: &Node, source: &String) -> KeyspaceData {
+    fn parse_keyspace_data(node: &Node, source: &str) -> KeyspaceData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
@@ -2335,7 +2332,7 @@ impl CassandraParser {
 
         result
     }
-    fn parse_user_data(node: &Node, source: &String) -> UserData {
+    fn parse_user_data(node: &Node, source: &str) -> UserData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
@@ -2375,7 +2372,7 @@ impl CassandraParser {
         result
     }
 
-    pub fn build_update_statement(node: &Node, source: &String) -> UpdateStatementData {
+    pub fn parse_update_statement(node: &Node, source: &str) -> UpdateStatementData {
         let mut statement_data = UpdateStatementData {
             begin_batch: None,
             modifiers: StatementModifiers::new(),
@@ -2435,7 +2432,7 @@ impl CassandraParser {
         statement_data
     }
 
-    fn parse_privilege(node: &Node, source: &String) -> Privilege {
+    fn parse_privilege(node: &Node, source: &str) -> Privilege {
         match NodeFuncs::as_string(node, source).to_uppercase().as_str() {
             "ALL" | "ALL PERMISSIONS" => Privilege::ALL,
             "ALTER" => Privilege::ALTER,
@@ -2450,7 +2447,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_privilege_data(node: &Node, source: &String) -> PrivilegeData {
+    fn parse_privilege_data(node: &Node, source: &str) -> PrivilegeData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
@@ -2477,7 +2474,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_assignment_element(node: &Node, source: &String) -> AssignmentElement {
+    fn parse_assignment_element(node: &Node, source: &str) -> AssignmentElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let name = CassandraParser::parse_indexed_column(&mut cursor, source);
@@ -2502,7 +2499,7 @@ impl CassandraParser {
         result
     }
 
-    pub fn build_delete_statement(node: &Node, source: &String) -> DeleteStatementData {
+    pub fn parse_delete_statement(node: &Node, source: &str) -> DeleteStatementData {
         let mut statement_data = DeleteStatementData {
             begin_batch: None,
             modifiers: StatementModifiers::new(),
@@ -2573,17 +2570,17 @@ impl CassandraParser {
         statement_data
     }
 
-    fn parse_if_condition_list(node: &Node, source: &String) -> Option<Vec<(String, String)>> {
+    fn parse_if_condition_list(node: &Node, source: &str) -> Option<Vec<(String, String)>> {
         let mut result = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
         while process {
             cursor.goto_first_child();
-            let column = NodeFuncs::as_string(&cursor.node(), &source);
+            let column = NodeFuncs::as_string(&cursor.node(), source);
             // consume the '='
             cursor.goto_next_sibling();
             cursor.goto_next_sibling();
-            let value = NodeFuncs::as_string(&cursor.node(), &source);
+            let value = NodeFuncs::as_string(&cursor.node(), source);
             result.push((column, value));
             cursor.goto_parent();
             process = cursor.goto_next_sibling();
@@ -2595,20 +2592,20 @@ impl CassandraParser {
         Some(result)
     }
 
-    fn parse_delete_column_item(node: &Node, source: &String) -> IndexedColumn {
+    fn parse_delete_column_item(node: &Node, source: &str) -> IndexedColumn {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         CassandraParser::parse_indexed_column(&mut cursor, source)
     }
 
-    fn parse_indexed_column(cursor: &mut TreeCursor, source: &String) -> IndexedColumn {
+    fn parse_indexed_column(cursor: &mut TreeCursor, source: &str) -> IndexedColumn {
         IndexedColumn {
-            column: NodeFuncs::as_string(&cursor.node(), &source),
+            column: NodeFuncs::as_string(&cursor.node(), source),
 
             value: if cursor.goto_next_sibling() && cursor.node().kind().eq("[") {
                 // consume '['
                 cursor.goto_next_sibling();
-                let result = Some(NodeFuncs::as_string(&cursor.node(), &source));
+                let result = Some(NodeFuncs::as_string(&cursor.node(), source));
                 // consume ']'
                 cursor.goto_next_sibling();
                 result
@@ -2618,7 +2615,7 @@ impl CassandraParser {
         }
     }
 
-    pub fn build_insert_statement(node: &Node, source: &String) -> InsertStatementData {
+    pub fn parse_insert_statement(node: &Node, source: &str) -> InsertStatementData {
         let mut statement_data = InsertStatementData {
             begin_batch: None,
             modifiers: StatementModifiers::new(),
@@ -2692,14 +2689,14 @@ impl CassandraParser {
         statement_data
     }
 
-    fn parse_column_list(node: &Node, source: &String) -> Vec<String> {
+    fn parse_column_list(node: &Node, source: &str) -> Vec<String> {
         let mut result: Vec<String> = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
 
         while process {
             if cursor.node().kind().eq("column") {
-                result.push(NodeFuncs::as_string(&cursor.node(), &source));
+                result.push(NodeFuncs::as_string(&cursor.node(), source));
             }
             process = cursor.goto_next_sibling();
             // consume ',' if it is there
@@ -2708,7 +2705,7 @@ impl CassandraParser {
         result
     }
 
-    fn parse_using_timestamp(node: &Node, source: &String) -> Option<u64> {
+    fn parse_using_timestamp(node: &Node, source: &str) -> Option<u64> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume "USING"
@@ -2716,13 +2713,13 @@ impl CassandraParser {
         // consume "TIMESTAMP"
         cursor.goto_next_sibling();
         Some(
-            NodeFuncs::as_string(&cursor.node(), &source)
+            NodeFuncs::as_string(&cursor.node(), source)
                 .parse::<u64>()
                 .unwrap(),
         )
     }
 
-    fn parse_ttl_timestamp(node: &Node, source: &String) -> TtlTimestamp {
+    fn parse_ttl_timestamp(node: &Node, source: &str) -> TtlTimestamp {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume "USING"
@@ -2750,15 +2747,15 @@ impl CassandraParser {
         TtlTimestamp { ttl, timestamp }
     }
 
-    fn parse_from_spec(node: &Node, source: &String) -> String {
+    fn parse_from_spec(node: &Node, source: &str) -> String {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'FROM'
         cursor.goto_next_sibling();
-        CassandraParser::parse_table_name(&cursor.node(), &source)
+        CassandraParser::parse_table_name(&cursor.node(), source)
     }
 
-    fn parse_dotted_name(cursor: &mut TreeCursor, source: &String) -> String {
+    fn parse_dotted_name(cursor: &mut TreeCursor, source: &str) -> String {
         let mut result = NodeFuncs::as_string(&cursor.node(), source);
         if cursor.goto_next_sibling() {
             // we have fully qualified name
@@ -2769,13 +2766,13 @@ impl CassandraParser {
         }
         result
     }
-    fn parse_table_name(node: &Node, source: &String) -> String {
+    fn parse_table_name(node: &Node, source: &str) -> String {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         CassandraParser::parse_dotted_name(&mut cursor, source)
     }
 
-    fn parse_function_args(node: &Node, source: &String) -> Vec<Operand> {
+    fn parse_function_args(node: &Node, source: &str) -> Vec<Operand> {
         let mut result = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
@@ -2791,7 +2788,7 @@ impl CassandraParser {
         result
     }
 
-    fn parse_expression_list(node: &Node, source: &String) -> Vec<Operand> {
+    fn parse_expression_list(node: &Node, source: &str) -> Vec<Operand> {
         let mut result = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
@@ -2807,10 +2804,10 @@ impl CassandraParser {
         result
     }
 
-    fn parse_operand(node: &Node, source: &String) -> Operand {
+    fn parse_operand(node: &Node, source: &str) -> Operand {
         match node.kind() {
             "constant" => Operand::CONST(NodeFuncs::as_string(node, source)),
-            "column" => Operand::COLUMN(NodeFuncs::as_string(node, &source)),
+            "column" => Operand::COLUMN(NodeFuncs::as_string(node, source)),
             "assignment_tuple" => {
                 Operand::TUPLE(CassandraParser::parse_assignment_tuple(node, source))
             }
@@ -2820,14 +2817,14 @@ impl CassandraParser {
             }
             "assignment_set" => Operand::SET(CassandraParser::parse_assignment_set(node, source)),
             "function_args" => Operand::TUPLE(CassandraParser::parse_function_args(node, source)),
-            "function_call" => Operand::FUNC(NodeFuncs::as_string(node, &source)),
+            "function_call" => Operand::FUNC(NodeFuncs::as_string(node, source)),
             // TODO should this be unreachable()?
             _ => Operand::CONST(NodeFuncs::as_string(node, source)),
         }
     }
 
     // parses lists of option_hash_item or replication_list_item
-    fn parse_map(node: &Node, source: &String) -> Vec<(String, String)> {
+    fn parse_map(node: &Node, source: &str) -> Vec<(String, String)> {
         let mut cursor = node.walk();
 
         cursor.goto_first_child();
@@ -2839,11 +2836,11 @@ impl CassandraParser {
                 "}" | "," => {}
                 "option_hash_item" | "replication_list_item" => {
                     cursor.goto_first_child();
-                    let key = NodeFuncs::as_string(&cursor.node(), &source);
+                    let key = NodeFuncs::as_string(&cursor.node(), source);
                     cursor.goto_next_sibling();
                     // consume the ':'
                     cursor.goto_next_sibling();
-                    let value = NodeFuncs::as_string(&cursor.node(), &source);
+                    let value = NodeFuncs::as_string(&cursor.node(), source);
                     entries.push((key, value));
                     cursor.goto_parent();
                 }
@@ -2854,7 +2851,7 @@ impl CassandraParser {
         entries
     }
 
-    fn parse_assignment_map(node: &Node, source: &String) -> Vec<(String, String)> {
+    fn parse_assignment_map(node: &Node, source: &str) -> Vec<(String, String)> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut entries: Vec<(String, String)> = vec![];
@@ -2865,11 +2862,11 @@ impl CassandraParser {
             match cursor.node().kind() {
                 "}" | "," => {}
                 _ => {
-                    let key = NodeFuncs::as_string(&cursor.node(), &source);
+                    let key = NodeFuncs::as_string(&cursor.node(), source);
                     cursor.goto_next_sibling();
                     // consume the ':'
                     cursor.goto_next_sibling();
-                    let value = NodeFuncs::as_string(&cursor.node(), &source);
+                    let value = NodeFuncs::as_string(&cursor.node(), source);
                     entries.push((key, value));
                 }
             }
@@ -2878,7 +2875,7 @@ impl CassandraParser {
         entries
     }
 
-    fn parse_assignment_list(node: &Node, source: &String) -> Vec<String> {
+    fn parse_assignment_list(node: &Node, source: &str) -> Vec<String> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // [ const, const, ... ]
@@ -2888,14 +2885,14 @@ impl CassandraParser {
             match cursor.node().kind() {
                 "]" | "," => {}
                 _ => {
-                    entries.push(NodeFuncs::as_string(&cursor.node(), &source));
+                    entries.push(NodeFuncs::as_string(&cursor.node(), source));
                 }
             }
         }
         entries
     }
 
-    fn parse_assignment_set(node: &Node, source: &String) -> Vec<String> {
+    fn parse_assignment_set(node: &Node, source: &str) -> Vec<String> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // { const, const, ... }
@@ -2905,14 +2902,14 @@ impl CassandraParser {
             match cursor.node().kind() {
                 "}" | "," => {}
                 _ => {
-                    entries.push(NodeFuncs::as_string(&cursor.node(), &source));
+                    entries.push(NodeFuncs::as_string(&cursor.node(), source));
                 }
             }
         }
         entries
     }
 
-    fn parse_assignment_tuple(node: &Node, source: &String) -> Vec<Operand> {
+    fn parse_assignment_tuple(node: &Node, source: &str) -> Vec<Operand> {
         // ( expression, expression ... )
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -2922,7 +2919,7 @@ impl CassandraParser {
         CassandraParser::parse_expression_list(&cursor.node(), source)
     }
 
-    fn parse_begin_batch(node: &Node, source: &String) -> BeginBatch {
+    fn parse_begin_batch(node: &Node, source: &str) -> BeginBatch {
         let mut result = BeginBatch::new();
 
         let mut cursor = node.walk();
@@ -2946,7 +2943,7 @@ impl CassandraParser {
         result
     }
 
-    pub fn build_select_statement(node: &Node, source: &String) -> SelectStatementData {
+    pub fn parse_select_statement(node: &Node, source: &str) -> SelectStatementData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
@@ -2971,7 +2968,7 @@ impl CassandraParser {
                                     .elements
                                     .push(CassandraParser::parse_select_element(
                                         &cursor.node(),
-                                        &source,
+                                        source,
                                     ))
                             }
                             "*" => statement_data.elements.push(SelectElement::Star),
@@ -2997,7 +2994,7 @@ impl CassandraParser {
                     // consume LIMIT
                     cursor.goto_next_sibling();
                     statement_data.modifiers.limit = Some(
-                        NodeFuncs::as_string(&cursor.node(), &source)
+                        NodeFuncs::as_string(&cursor.node(), source)
                             .parse::<i32>()
                             .unwrap(),
                     );
@@ -3011,10 +3008,10 @@ impl CassandraParser {
                 _ => {}
             }
         }
-        return statement_data;
+        statement_data
     }
 
-    fn parse_where_spec(node: &Node, source: &String) -> Vec<RelationElement> {
+    fn parse_where_spec(node: &Node, source: &str) -> Vec<RelationElement> {
         // (where_spec (relation_elements (relation_element (constant))))
         let mut result = vec![];
         let mut cursor = node.walk();
@@ -3036,7 +3033,7 @@ impl CassandraParser {
         result
     }
 
-    fn parse_relation_element(node: &Node, source: &String) -> RelationElement {
+    fn parse_relation_element(node: &Node, source: &str) -> RelationElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         match cursor.node().kind() {
@@ -3052,9 +3049,7 @@ impl CassandraParser {
                         cursor.goto_next_sibling();
                         // consume 'KEY'
                         cursor.goto_next_sibling();
-                        let mut result = vec![];
-                        result.push(Operand::CONST(NodeFuncs::as_string(&cursor.node(), source)));
-                        result
+                        vec![Operand::CONST(NodeFuncs::as_string(&cursor.node(), source))]
                     },
                 }
             }
@@ -3068,14 +3063,12 @@ impl CassandraParser {
                         cursor.goto_next_sibling();
                         // consume 'CONTAINS'
                         cursor.goto_next_sibling();
-                        let mut result = vec![];
-                        result.push(Operand::CONST(NodeFuncs::as_string(&cursor.node(), source)));
-                        result
+                        vec![Operand::CONST(NodeFuncs::as_string(&cursor.node(), source))]
                     },
                 }
             }
             _ => {
-                let result = RelationElement {
+                RelationElement {
                     obj: CassandraParser::parse_relation_value(&mut cursor, source),
                     oper: {
                         // consumer the obj
@@ -3100,15 +3093,12 @@ impl CassandraParser {
                             values.push(CassandraParser::parse_operand(&cursor.node(), source));
                         }
                         if inline_tuple && values.len() > 1 {
-                            let mut result = vec![];
-                            result.push(Operand::TUPLE(values));
-                            result
+                            vec![Operand::TUPLE(values)]
                         } else {
                             values
                         }
                     },
-                };
-                return result;
+                }
             }
         }
     }
@@ -3131,12 +3121,12 @@ impl CassandraParser {
         }
     }
 
-    fn parse_relation_value(cursor: &mut TreeCursor, source: &String) -> Operand {
+    fn parse_relation_value(cursor: &mut TreeCursor, source: &str) -> Operand {
         let node = cursor.node();
         let kind = node.kind();
         match kind {
-            "column" => Operand::COLUMN(NodeFuncs::as_string(&node, &source)),
-            "function_call" => Operand::FUNC(NodeFuncs::as_string(&node, &source)),
+            "column" => Operand::COLUMN(NodeFuncs::as_string(&node, source)),
+            "function_call" => Operand::FUNC(NodeFuncs::as_string(&node, source)),
             "(" => {
                 let mut values: Vec<Operand> = Vec::new();
                 // consume '('
@@ -3154,7 +3144,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_order_spec(node: &Node, source: &String) -> Option<OrderClause> {
+    fn parse_order_spec(node: &Node, source: &str) -> Option<OrderClause> {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume "ORDER"
@@ -3162,7 +3152,7 @@ impl CassandraParser {
         // consume "BY"
         cursor.goto_next_sibling();
         Some(OrderClause {
-            name: NodeFuncs::as_string(&cursor.node(), &source),
+            name: NodeFuncs::as_string(&cursor.node(), source),
             desc: {
                 // consume the name
                 if cursor.goto_next_sibling() {
@@ -3174,7 +3164,7 @@ impl CassandraParser {
         })
     }
 
-    fn parse_select_element(node: &Node, source: &String) -> SelectElement {
+    fn parse_select_element(node: &Node, source: &str) -> SelectElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
@@ -3201,7 +3191,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_standard_drop(node: &Node, source: &String) -> DropData {
+    fn parse_standard_drop(node: &Node, source: &str) -> DropData {
         let mut cursor = node.walk();
         let mut if_exists = false;
         cursor.goto_first_child();
@@ -3225,7 +3215,7 @@ impl CassandraParser {
         }
     }
 
-    fn parse_drop_trigger(node: &Node, source: &String) -> DropTriggerData {
+    fn parse_drop_trigger(node: &Node, source: &str) -> DropTriggerData {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         DropTriggerData {
@@ -3548,7 +3538,7 @@ impl CassandraAST {
 
     /// retrieves the query value for the node (word or phrase enclosed by the node)
     pub fn node_text(&self, node: &Node) -> String {
-        node.utf8_text(&self.text.as_bytes()).unwrap().to_string()
+        node.utf8_text(self.text.as_bytes()).unwrap().to_string()
     }
 }
 
