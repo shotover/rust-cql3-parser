@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use crate::cassandra_ast::common::DataType;
+use std::fmt::{Display, Formatter};
 
 /// data to alter a column type.
 #[derive(PartialEq, Debug, Clone)]

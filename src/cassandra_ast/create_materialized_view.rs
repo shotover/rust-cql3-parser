@@ -1,7 +1,7 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::common::PrimaryKey;
 use crate::cassandra_ast::common::{RelationElement, WithItem};
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// the data to create a materialized view
 #[derive(PartialEq, Debug, Clone)]

@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// the data for the `create role` statement.
 #[derive(PartialEq, Debug, Clone)]

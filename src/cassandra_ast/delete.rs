@@ -1,7 +1,7 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::begin_batch::BeginBatch;
 use crate::cassandra_ast::common::RelationElement;
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// the data for a delete statement.
 #[derive(PartialEq, Debug, Clone)]
@@ -19,7 +19,7 @@ pub struct Delete {
     /// if present a list of key,values for the `IF` clause
     pub if_clause: Option<Vec<RelationElement>>,
     /// if true and if_clause is NONE then `IF EXISTS` is added
-    pub if_exists : bool,
+    pub if_exists: bool,
 }
 
 impl Display for Delete {

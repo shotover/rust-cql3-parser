@@ -1,7 +1,7 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::begin_batch::BeginBatch;
 use crate::cassandra_ast::common::{Operand, TtlTimestamp};
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// the data for insert statements.
 #[derive(PartialEq, Debug, Clone)]
@@ -17,7 +17,7 @@ pub struct Insert {
     /// if set the timestamp for `USING TTL`
     pub using_ttl: Option<TtlTimestamp>,
     /// if true then `IF NOT EXISTS` is added to the statement
-    pub if_not_exists : bool,
+    pub if_not_exists: bool,
 }
 
 impl Display for Insert {
@@ -47,18 +47,18 @@ impl Display for Insert {
 #[derive(PartialEq, Debug, Clone)]
 pub enum InsertValues {
     /// this is the standard list of values.
-    VALUES(Vec<Operand>),
+    Values(Vec<Operand>),
     /// this option allows JSON string to define the values.
-    JSON(String),
+    Json(String),
 }
 
 impl Display for InsertValues {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            InsertValues::VALUES(columns) => {
+            InsertValues::Values(columns) => {
                 write!(f, "VALUES ({})", columns.iter().join(", "))
             }
-            InsertValues::JSON(text) => {
+            InsertValues::Json(text) => {
                 write!(f, "JSON {}", text)
             }
         }

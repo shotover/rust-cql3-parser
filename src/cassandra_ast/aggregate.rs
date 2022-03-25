@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::common::DataType;
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Aggregate {

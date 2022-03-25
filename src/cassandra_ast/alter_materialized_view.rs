@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::common::WithItem;
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// The data for an `AlterMaterializedView` statement
 #[derive(PartialEq, Debug, Clone)]

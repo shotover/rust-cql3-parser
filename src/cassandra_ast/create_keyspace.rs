@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// The data necessary to create a keyspace.
 #[derive(PartialEq, Debug, Clone)]

@@ -1,14 +1,14 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::common::{Operand, OrderClause, RelationElement};
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// data for select statements
 #[derive(PartialEq, Debug, Clone)]
 pub struct Select {
     /// if true DISTINCT results
-    pub distinct : bool,
+    pub distinct: bool,
     /// if true JSON reslts
-    pub json : bool,
+    pub json: bool,
     /// The table name.
     pub table_name: String,
     /// the list of elements to select.
@@ -20,7 +20,7 @@ pub struct Select {
     /// the number of items to return
     pub limit: Option<i32>,
     /// if true ALLOW FILTERING is displayed
-    pub filtering : bool,
+    pub filtering: bool,
 }
 
 impl Select {
@@ -61,7 +61,7 @@ impl Select {
             Some(x) => x
                 .iter()
                 .map(|e| match &e.obj {
-                    Operand::COLUMN(name) => name.clone(),
+                    Operand::Column(name) => name.clone(),
                     _ => "".to_string(),
                 })
                 .filter(|e| !e.eq(&""))
@@ -76,11 +76,7 @@ impl Display for Select {
         write!(
             f,
             "SELECT {}{}{} FROM {}{}{}{}{}",
-            if self.distinct {
-                "DISTINCT "
-            } else {
-                ""
-            },
+            if self.distinct { "DISTINCT " } else { "" },
             if self.json { "JSON " } else { "" },
             self.elements.iter().join(", "),
             self.table_name,

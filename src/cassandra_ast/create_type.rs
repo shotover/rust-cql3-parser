@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::common::ColumnDefinition;
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// The data for a `CREATE TYPE` statement.
 #[derive(PartialEq, Debug, Clone)]

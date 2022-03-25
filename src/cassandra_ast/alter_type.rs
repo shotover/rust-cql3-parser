@@ -1,7 +1,7 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::alter_column::AlterColumnType;
 use crate::cassandra_ast::common::ColumnDefinition;
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// data for an `AlterType` statement
 #[derive(PartialEq, Debug, Clone)]

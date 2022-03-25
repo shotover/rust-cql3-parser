@@ -1,7 +1,7 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
-use crate::cassandra_ast::common::DataType;
 use crate::cassandra_ast::common::ColumnDefinition;
+use crate::cassandra_ast::common::DataType;
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// Data for the create function statement
 #[derive(PartialEq, Debug, Clone)]

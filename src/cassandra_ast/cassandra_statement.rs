@@ -1,6 +1,3 @@
-use tree_sitter::{Node, Tree};
-use std::fmt::{Display, Formatter};
-use crate::cassandra_ast::{CassandraParser, NodeFuncs};
 use crate::cassandra_ast::aggregate::Aggregate;
 use crate::cassandra_ast::alter_materialized_view::AlterMaterializedView;
 use crate::cassandra_ast::alter_table::AlterTable;
@@ -22,6 +19,9 @@ use crate::cassandra_ast::insert::Insert;
 use crate::cassandra_ast::list_role::ListRole;
 use crate::cassandra_ast::select::Select;
 use crate::cassandra_ast::update::Update;
+use crate::cassandra_ast::{CassandraParser, NodeFuncs};
+use std::fmt::{Display, Formatter};
+use tree_sitter::{Node, Tree};
 
 /// The Supported Cassandra CQL3 statements
 /// Documentation for statements can be found at
@@ -65,7 +65,7 @@ pub enum CassandraStatement {
     Truncate(String),
     Update(Update),
     Use(String),
-    UNKNOWN(String),
+    Unknown(String),
 }
 
 impl CassandraStatement {
@@ -203,12 +203,12 @@ impl CassandraStatement {
                 if cursor.goto_next_sibling() {
                     CassandraStatement::Use(NodeFuncs::as_string(&cursor.node(), source))
                 } else {
-                    CassandraStatement::UNKNOWN(
+                    CassandraStatement::Unknown(
                         "Keyspace not provided with USE statement".to_string(),
                     )
                 }
             }
-            _ => CassandraStatement::UNKNOWN(source.to_string()),
+            _ => CassandraStatement::Unknown(source.to_string()),
         }
     }
 }
@@ -301,7 +301,968 @@ impl Display for CassandraStatement {
             CassandraStatement::Truncate(table) => write!(f, "TRUNCATE TABLE {}", table),
             CassandraStatement::Update(statement_data) => write!(f, "{}", statement_data),
             CassandraStatement::Use(keyspace) => write!(f, "USE {}", keyspace),
-            CassandraStatement::UNKNOWN(query) => write!(f, "{}", query),
+            CassandraStatement::Unknown(query) => write!(f, "{}", query),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cassandra_ast::cassandra_statement::CassandraStatement;
+    use crate::cassandra_ast::select::{Named, SelectElement};
+    use crate::cassandra_ast::CassandraAST;
+
+    fn test_parsing(expected: &[&str], statements: &[&str]) {
+        for i in 0..statements.len() {
+            let ast = CassandraAST::new(statements[i].to_string());
+            assert!(
+                !ast.has_error(),
+                "AST has error\n{}\n{} ",
+                statements[i],
+                ast.tree.root_node().to_sexp()
+            );
+            let stmt = ast.statement;
+            let stmt_str = stmt.to_string();
+            assert_eq!(expected[i], stmt_str);
+        }
+    }
+    #[test]
+    fn test_select_statements() {
+        let stmts = [
+            "SELECT DISTINCT JSON * FROM table",
+            "SELECT column FROM table",
+            "SELECT column AS column2 FROM table",
+            "SELECT func(*) FROM table",
+            "SELECT column AS column2, func(*) AS func2 FROM table;",
+            "SELECT column FROM table WHERE col < 5",
+            "SELECT column FROM table WHERE col <= 'hello'",
+            "SELECT column FROM table WHERE col = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2;",
+            "SELECT column FROM table WHERE col <> -5",
+            "SELECT column FROM table WHERE col >= 3.5",
+            "SELECT column FROM table WHERE col = X'E0'",
+            "SELECT column FROM table WHERE col = 0XFF",
+            "SELECT column FROM table WHERE col = 0Xef",
+            "SELECT column FROM table WHERE col = true",
+            "SELECT column FROM table WHERE col = false",
+            "SELECT column FROM table WHERE col = null",
+            "SELECT column FROM table WHERE col = null AND col2 = 'jinx'",
+            "SELECT column FROM table WHERE col = $$ a code's block $$",
+            "SELECT column FROM table WHERE func(*) < 5",
+            "SELECT column FROM table WHERE func(*) <= 'hello'",
+            "SELECT column FROM table WHERE func(*) = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2;",
+            "SELECT column FROM table WHERE func(*) <> -5",
+            "SELECT column FROM table WHERE func(*) >= 3.5",
+            "SELECT column FROM table WHERE func(*) = X'e0'",
+            "SELECT column FROM table WHERE func(*) = 0XFF",
+            "SELECT column FROM table WHERE func(*) = 0Xff",
+            "SELECT column FROM table WHERE func(*) = true",
+            "SELECT column FROM table WHERE func(*) = false",
+            "SELECT column FROM table WHERE func(*) = func2(*)",
+            "SELECT column FROM table WHERE col IN ( 'literal', 5, func(*), true )",
+            "SELECT column FROM table WHERE (col1, col2) IN (( 5, 'stuff'), (6, 'other'));",
+            "SELECT column FROM table WHERE (col1, col2) >= ( 5, 'stuff'), (6, 'other')",
+            "SELECT column FROM table WHERE col1 CONTAINS 'foo'",
+            "SELECT column FROM table WHERE col1 CONTAINS KEY 'foo'",
+            "SELECT column FROM table ORDER BY col1",
+            "SELECT column FROM table ORDER BY col1 ASC",
+            "SELECT column FROM table ORDER BY col1 DESC",
+            "SELECT column FROM table LIMIT 5",
+            "SELECT column FROM table ALLOW FILTERING",
+        ];
+        let expected = [
+            "SELECT DISTINCT JSON * FROM table",
+            "SELECT column FROM table",
+            "SELECT column AS column2 FROM table",
+            "SELECT func(*) FROM table",
+            "SELECT column AS column2, func(*) AS func2 FROM table",
+            "SELECT column FROM table WHERE col < 5",
+            "SELECT column FROM table WHERE col <= 'hello'",
+            "SELECT column FROM table WHERE col = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2",
+            "SELECT column FROM table WHERE col <> -5",
+            "SELECT column FROM table WHERE col >= 3.5",
+            "SELECT column FROM table WHERE col = X'E0'",
+            "SELECT column FROM table WHERE col = 0XFF",
+            "SELECT column FROM table WHERE col = 0Xef",
+            "SELECT column FROM table WHERE col = true",
+            "SELECT column FROM table WHERE col = false",
+            "SELECT column FROM table WHERE col = NULL",
+            "SELECT column FROM table WHERE col = NULL AND col2 = 'jinx'",
+            "SELECT column FROM table WHERE col = $$ a code's block $$",
+            "SELECT column FROM table WHERE func(*) < 5",
+            "SELECT column FROM table WHERE func(*) <= 'hello'",
+            "SELECT column FROM table WHERE func(*) = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2",
+            "SELECT column FROM table WHERE func(*) <> -5",
+            "SELECT column FROM table WHERE func(*) >= 3.5",
+            "SELECT column FROM table WHERE func(*) = X'e0'",
+            "SELECT column FROM table WHERE func(*) = 0XFF",
+            "SELECT column FROM table WHERE func(*) = 0Xff",
+            "SELECT column FROM table WHERE func(*) = true",
+            "SELECT column FROM table WHERE func(*) = false",
+            "SELECT column FROM table WHERE func(*) = func2(*)",
+            "SELECT column FROM table WHERE col IN ('literal', 5, func(*), true)",
+            "SELECT column FROM table WHERE (col1, col2) IN ((5, 'stuff'), (6, 'other'))",
+            "SELECT column FROM table WHERE (col1, col2) >= (5, 'stuff'), (6, 'other')",
+            "SELECT column FROM table WHERE col1 CONTAINS 'foo'",
+            "SELECT column FROM table WHERE col1 CONTAINS KEY 'foo'",
+            "SELECT column FROM table ORDER BY col1 ASC",
+            "SELECT column FROM table ORDER BY col1 ASC",
+            "SELECT column FROM table ORDER BY col1 DESC",
+            "SELECT column FROM table LIMIT 5",
+            "SELECT column FROM table ALLOW FILTERING",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_insert_statements() {
+        let stmts = [
+        "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5);",
+        "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
+        "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
+        "INSERT INTO table (col1, col2) JSON $$ json code $$",
+        "INSERT INTO table (col1, col2) VALUES ({ 5 : 6 }, 'foo')",
+        "INSERT INTO table (col1, col2) VALUES ({ 5, 6 }, 'foo')",
+        "INSERT INTO table (col1, col2) VALUES ([ 5, 6 ], 'foo')",
+        "INSERT INTO table (col1, col2) VALUES (( 5, 6 ), 'foo')",
+    ];
+        let expected = [
+        "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5)",
+        "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
+        "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
+        "INSERT INTO table (col1, col2) JSON $$ json code $$",
+        "INSERT INTO table (col1, col2) VALUES ({5:6}, 'foo')",
+        "INSERT INTO table (col1, col2) VALUES ({5, 6}, 'foo')",
+        "INSERT INTO table (col1, col2) VALUES ([5, 6], 'foo')",
+        "INSERT INTO table (col1, col2) VALUES ((5, 6), 'foo')",
+    ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_delete_statements() {
+        let stmts = [
+        "BEGIN LOGGED BATCH USING TIMESTAMP 5 DELETE column [ 'hello' ] from table WHERE column2 = 'foo' IF EXISTS",
+        "BEGIN UNLOGGED BATCH DELETE column [ 6 ] from keyspace.table USING TIMESTAMP 5 WHERE column2='foo' IF column3 = 'stuff'",
+        "BEGIN BATCH DELETE column [ 'hello' ] from keyspace.table WHERE column2='foo'",
+        "DELETE from table WHERE column2='foo'",
+        "DELETE column, column3 from keyspace.table WHERE column2='foo'",
+        "DELETE column, column3 from keyspace.table WHERE column2='foo' IF column4 = 'bar'",
+    ];
+        let expected  = [
+        "BEGIN LOGGED BATCH USING TIMESTAMP 5 DELETE column['hello'] FROM table WHERE column2 = 'foo' IF EXISTS",
+        "BEGIN UNLOGGED BATCH DELETE column[6] FROM keyspace.table USING TIMESTAMP 5 WHERE column2 = 'foo' IF column3 = 'stuff'",
+        "BEGIN BATCH DELETE column['hello'] FROM keyspace.table WHERE column2 = 'foo'",
+        "DELETE FROM table WHERE column2 = 'foo'",
+        "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo'",
+        "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo' IF column4 = 'bar'",
+    ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn x() {
+        let qry = "CREATE MATERIALIZED VIEW view AS SELECT col1, col2 FROM tbl WHERE col3 IS NOT NULL PRIMARY KEY (col1)";
+        let ast = CassandraAST::new(qry.to_string());
+        let stmt = ast.statement;
+        let stmt_str = stmt.to_string();
+        assert_eq!(qry, stmt_str);
+    }
+
+    #[test]
+    fn test_get_statement_type() {
+        let stmts = ["Not a valid statement"];
+        let types = [CassandraStatement::Unknown(
+            "Not a valid statement".to_string(),
+        )];
+
+        for i in 0..stmts.len() {
+            let ast = CassandraAST::new(stmts.get(i).unwrap().to_string());
+            assert_eq!(*types.get(i).unwrap(), ast.statement);
+        }
+    }
+
+    #[test]
+    fn test_has_error() {
+        let ast = CassandraAST::new("SELECT foo from bar.baz where fu='something'".to_string());
+        assert!(!ast.has_error());
+        let ast = CassandraAST::new("Not a valid statement".to_string());
+        assert!(ast.has_error());
+    }
+
+    #[test]
+    fn test_truncate() {
+        let stmts = [
+            "TRUNCATE foo",
+            "TRUNCATE TABLE foo",
+            "TRUNCATE keyspace.foo",
+            "TRUNCATE TABLE keyspace.foo",
+        ];
+        let expected = [
+            "TRUNCATE TABLE foo",
+            "TRUNCATE TABLE foo",
+            "TRUNCATE TABLE keyspace.foo",
+            "TRUNCATE TABLE keyspace.foo",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_use() {
+        let stmts = ["USE keyspace"];
+        let expected = ["USE keyspace"];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_aggregate() {
+        let stmts = [
+            "DROP AGGREGATE IF EXISTS aggregate;",
+            "DROP AGGREGATE aggregate;",
+            "DROP AGGREGATE IF EXISTS keyspace.aggregate;",
+            "DROP AGGREGATE keyspace.aggregate;",
+        ];
+        let expected = [
+            "DROP AGGREGATE IF EXISTS aggregate",
+            "DROP AGGREGATE aggregate",
+            "DROP AGGREGATE IF EXISTS keyspace.aggregate",
+            "DROP AGGREGATE keyspace.aggregate",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_function() {
+        let stmts = [
+            "DROP FUNCTION func;",
+            "DROP FUNCTION keyspace.func;",
+            "DROP FUNCTION IF EXISTS func;",
+            "DROP FUNCTION IF EXISTS keyspace.func;",
+        ];
+        let expected = [
+            "DROP FUNCTION func",
+            "DROP FUNCTION keyspace.func",
+            "DROP FUNCTION IF EXISTS func",
+            "DROP FUNCTION IF EXISTS keyspace.func",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_index() {
+        let stmts = [
+            "DROP INDEX idx;",
+            "DROP INDEX keyspace.idx;",
+            "DROP INDEX IF EXISTS idx;",
+            "DROP INDEX IF EXISTS keyspace.idx;",
+        ];
+        let expected = [
+            "DROP INDEX idx",
+            "DROP INDEX keyspace.idx",
+            "DROP INDEX IF EXISTS idx",
+            "DROP INDEX IF EXISTS keyspace.idx",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_keyspace() {
+        let stmts = [
+            "DROP KEYSPACE keyspace",
+            "DROP KEYSPACE IF EXISTS keyspace;",
+        ];
+        let expected = ["DROP KEYSPACE keyspace", "DROP KEYSPACE IF EXISTS keyspace"];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_materialized_view() {
+        let stmts = [
+            "DROP MATERIALIZED VIEW view;",
+            "DROP MATERIALIZED VIEW IF EXISTS view;",
+            "DROP MATERIALIZED VIEW keyspace.view;",
+            "DROP MATERIALIZED VIEW IF EXISTS keyspace.view;",
+        ];
+        let expected = [
+            "DROP MATERIALIZED VIEW view",
+            "DROP MATERIALIZED VIEW IF EXISTS view",
+            "DROP MATERIALIZED VIEW keyspace.view",
+            "DROP MATERIALIZED VIEW IF EXISTS keyspace.view",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_role() {
+        let stmts = ["DROP ROLE role;", "DROP ROLE if exists role;"];
+        let expected = ["DROP ROLE role", "DROP ROLE IF EXISTS role"];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_table() {
+        let stmts = [
+            "DROP TABLE table;",
+            "DROP TABLE IF EXISTS table;",
+            "DROP TABLE keyspace.table;",
+            "DROP TABLE IF EXISTS keyspace.table;",
+        ];
+        let expected = [
+            "DROP TABLE table",
+            "DROP TABLE IF EXISTS table",
+            "DROP TABLE keyspace.table",
+            "DROP TABLE IF EXISTS keyspace.table",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_type() {
+        let stmts = [
+            "DROP TYPE type;",
+            "DROP TYPE IF EXISTS type;",
+            "DROP TYPE keyspace.type;",
+            "DROP TYPE IF EXISTS keyspace.type;",
+        ];
+        let expected = [
+            "DROP TYPE type",
+            "DROP TYPE IF EXISTS type",
+            "DROP TYPE keyspace.type",
+            "DROP TYPE IF EXISTS keyspace.type",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_user() {
+        let stmts = ["DROP USER user;", "DROP USER IF EXISTS user;"];
+        let expected = ["DROP USER user", "DROP USER IF EXISTS user"];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_update_statements() {
+        let stmts = [
+        "BEGIN LOGGED BATCH USING TIMESTAMP 5 UPDATE keyspace.table SET col1 = 'foo' WHERE col2=5;",
+        "UPDATE keyspace.table USING TIMESTAMP 3 SET col1 = 'foo' WHERE col2=5;",
+        "UPDATE keyspace.table SET col1 = 'foo' WHERE col2=5 IF EXISTS;",
+        "UPDATE keyspace.table SET col1 = 'foo' WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = { 5 : 'hello', 'world' : 5b6962dd-3f90-4c93-8f61-eabfa4a803e2 } WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = {  'hello',  5b6962dd-3f90-4c93-8f61-eabfa4a803e2 } WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = [  'hello',  5b6962dd-3f90-4c93-8f61-eabfa4a803e2 ] WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = col2+5 WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = col2+{ 5 : 'hello', 'world' : 5b6962dd-3f90-4c93-8f61-eabfa4a803e2 } WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = { 5 : 'hello', 'world' : 5b6962dd-3f90-4c93-8f61-eabfa4a803e2 } - col2 WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = col2 + {  'hello',  5b6962dd-3f90-4c93-8f61-eabfa4a803e2 }  WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = {  'hello',  5b6962dd-3f90-4c93-8f61-eabfa4a803e2 } - col2 WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = col2+[  'hello',  5b6962dd-3f90-4c93-8f61-eabfa4a803e2 ] WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1 = [  'hello',  5b6962dd-3f90-4c93-8f61-eabfa4a803e2 ]+col2 WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table SET col1[5] = 'hello' WHERE col2=5 IF col3=7;",
+        "UPDATE keyspace.table USING TIMESTAMP 3 SET col1 = 'foo' WHERE col2=5;"
+    ];
+        let expected = [
+        "BEGIN LOGGED BATCH USING TIMESTAMP 5 UPDATE keyspace.table SET col1 = 'foo' WHERE col2 = 5",
+        "UPDATE keyspace.table USING TIMESTAMP 3 SET col1 = 'foo' WHERE col2 = 5",
+        "UPDATE keyspace.table SET col1 = 'foo' WHERE col2 = 5 IF EXISTS",
+        "UPDATE keyspace.table SET col1 = 'foo' WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = {5:'hello', 'world':5b6962dd-3f90-4c93-8f61-eabfa4a803e2} WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = {'hello', 5b6962dd-3f90-4c93-8f61-eabfa4a803e2} WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = ['hello', 5b6962dd-3f90-4c93-8f61-eabfa4a803e2] WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = col2 + 5 WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = col2 + {5:'hello', 'world':5b6962dd-3f90-4c93-8f61-eabfa4a803e2} WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = {5:'hello', 'world':5b6962dd-3f90-4c93-8f61-eabfa4a803e2} - col2 WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = col2 + {'hello', 5b6962dd-3f90-4c93-8f61-eabfa4a803e2} WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = {'hello', 5b6962dd-3f90-4c93-8f61-eabfa4a803e2} - col2 WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = col2 + ['hello', 5b6962dd-3f90-4c93-8f61-eabfa4a803e2] WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1 = ['hello', 5b6962dd-3f90-4c93-8f61-eabfa4a803e2] + col2 WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table SET col1[5] = 'hello' WHERE col2 = 5 IF col3 = 7",
+        "UPDATE keyspace.table USING TIMESTAMP 3 SET col1 = 'foo' WHERE col2 = 5"
+    ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_role() {
+        let stmts = [
+            "CREATE ROLE if not exists role;",
+            "CREATE ROLE 'role'",
+            "CREATE ROLE 'role' WITH PASSWORD = 'password'",
+            "CREATE ROLE 'role' WITH PASSWORD = 'password' AND LOGIN=false;",
+            "CREATE ROLE 'role' WITH SUPERUSER=true;",
+            "CREATE ROLE 'role' WITH OPTIONS={ 'foo' : 3.14, 'bar' : 'pi' }",
+        ];
+        let expected = [
+            "CREATE ROLE IF NOT EXISTS role",
+            "CREATE ROLE 'role'",
+            "CREATE ROLE 'role' WITH PASSWORD = 'password'",
+            "CREATE ROLE 'role' WITH PASSWORD = 'password' AND LOGIN = FALSE",
+            "CREATE ROLE 'role' WITH SUPERUSER = TRUE",
+            "CREATE ROLE 'role' WITH OPTIONS = {'foo':3.14, 'bar':'pi'}",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_alter_role() {
+        let stmts = [
+            "ALTER ROLE 'role'",
+            "ALTER ROLE 'role' WITH PASSWORD = 'password';",
+            "ALTER ROLE 'role' WITH PASSWORD = 'password' AND LOGIN=false;",
+            "ALTER ROLE 'role' WITH SUPERUSER=true;",
+            "ALTER ROLE 'role' WITH OPTIONS={ 'foo' : 3.14, 'bar' : 'pi' }",
+        ];
+        let expected = [
+            "ALTER ROLE 'role'",
+            "ALTER ROLE 'role' WITH PASSWORD = 'password'",
+            "ALTER ROLE 'role' WITH PASSWORD = 'password' AND LOGIN = FALSE",
+            "ALTER ROLE 'role' WITH SUPERUSER = TRUE",
+            "ALTER ROLE 'role' WITH OPTIONS = {'foo':3.14, 'bar':'pi'}",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_user() {
+        let stmts = [
+            "CREATE USER if not exists username WITH PASSWORD 'password';",
+            "CREATE USER username WITH PASSWORD 'password' superuser;",
+            "CREATE USER username WITH PASSWORD 'password' nosuperuser;",
+        ];
+        let expected = [
+            "CREATE USER IF NOT EXISTS username WITH PASSWORD 'password'",
+            "CREATE USER username WITH PASSWORD 'password' SUPERUSER",
+            "CREATE USER username WITH PASSWORD 'password' NOSUPERUSER",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+    #[test]
+    fn test_alter_user() {
+        let stmts = [
+            "ALTER USER username WITH PASSWORD 'password';",
+            "ALTER USER username WITH PASSWORD 'password' superuser;",
+            "ALTER USER username WITH PASSWORD 'password' nosuperuser;",
+        ];
+        let expected = [
+            "ALTER USER username WITH PASSWORD 'password'",
+            "ALTER USER username WITH PASSWORD 'password' SUPERUSER",
+            "ALTER USER username WITH PASSWORD 'password' NOSUPERUSER",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_keyspace() {
+        let stmts = [
+        "CREATE KEYSPACE keyspace WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1  };",
+        "CREATE KEYSPACE keyspace WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1  } AND DURABLE_WRITES = false;",
+        "CREATE KEYSPACE if not exists keyspace WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1  };",
+    ];
+        let expected = [
+        "CREATE KEYSPACE keyspace WITH REPLICATION = {'class':'SimpleStrategy', 'replication_factor':1}",
+        "CREATE KEYSPACE keyspace WITH REPLICATION = {'class':'SimpleStrategy', 'replication_factor':1} AND DURABLE_WRITES = FALSE",
+        "CREATE KEYSPACE IF NOT EXISTS keyspace WITH REPLICATION = {'class':'SimpleStrategy', 'replication_factor':1}",
+    ];
+        test_parsing(&expected, &stmts);
+    }
+    #[test]
+    fn test_alter_keyspace() {
+        let stmts = [
+            "ALTER KEYSPACE keyspace WITH REPLICATION = { 'foo' : 'bar', 'baz' : 5};",
+            "ALTER KEYSPACE keyspace WITH REPLICATION = { 'foo' : 5 } AND DURABLE_WRITES = true;",
+        ];
+        let expected = [
+            "ALTER KEYSPACE keyspace WITH REPLICATION = {'foo':'bar', 'baz':5}",
+            "ALTER KEYSPACE keyspace WITH REPLICATION = {'foo':5} AND DURABLE_WRITES = TRUE",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_grant() {
+        let stmts = [
+            "GRANT ALL ON 'keyspace'.table TO role;",
+            "GRANT ALL PERMISSIONS ON 'keyspace'.table TO role;",
+            "GRANT ALTER ON 'keyspace'.table TO role;",
+            "GRANT AUTHORIZE ON 'keyspace'.table TO role;",
+            "GRANT DESCRIBE ON 'keyspace'.table TO role;",
+            "GRANT EXECUTE ON 'keyspace'.table TO role;",
+            "GRANT CREATE ON 'keyspace'.table TO role;",
+            "GRANT DROP ON 'keyspace'.table TO role;",
+            "GRANT MODIFY ON 'keyspace'.table TO role;",
+            "GRANT SELECT ON 'keyspace'.table TO role;",
+            "GRANT ALL ON ALL FUNCTIONS TO role;",
+            "GRANT ALL ON ALL FUNCTIONS IN KEYSPACE keyspace TO role;",
+            "GRANT ALL ON ALL KEYSPACES TO role;",
+            "GRANT ALL ON ALL ROLES TO role;",
+            "GRANT ALL ON FUNCTION 'keyspace'.function TO role;",
+            "GRANT ALL ON FUNCTION 'function' TO role;",
+            "GRANT ALL ON KEYSPACE 'keyspace' TO role;",
+            "GRANT ALL ON ROLE 'role' TO role;",
+            "GRANT ALL ON TABLE 'keyspace'.table TO role;",
+            "GRANT ALL ON TABLE 'table' TO role;",
+            "GRANT ALL ON 'table' TO role;",
+        ];
+        let expected = [
+            "GRANT ALL PERMISSIONS ON TABLE 'keyspace'.table TO role",
+            "GRANT ALL PERMISSIONS ON TABLE 'keyspace'.table TO role",
+            "GRANT ALTER ON TABLE 'keyspace'.table TO role",
+            "GRANT AUTHORIZE ON TABLE 'keyspace'.table TO role",
+            "GRANT DESCRIBE ON TABLE 'keyspace'.table TO role",
+            "GRANT EXECUTE ON TABLE 'keyspace'.table TO role",
+            "GRANT CREATE ON TABLE 'keyspace'.table TO role",
+            "GRANT DROP ON TABLE 'keyspace'.table TO role",
+            "GRANT MODIFY ON TABLE 'keyspace'.table TO role",
+            "GRANT SELECT ON TABLE 'keyspace'.table TO role",
+            "GRANT ALL PERMISSIONS ON ALL FUNCTIONS TO role",
+            "GRANT ALL PERMISSIONS ON ALL FUNCTIONS IN KEYSPACE keyspace TO role",
+            "GRANT ALL PERMISSIONS ON ALL KEYSPACES TO role",
+            "GRANT ALL PERMISSIONS ON ALL ROLES TO role",
+            "GRANT ALL PERMISSIONS ON FUNCTION 'keyspace'.function TO role",
+            "GRANT ALL PERMISSIONS ON FUNCTION 'function' TO role",
+            "GRANT ALL PERMISSIONS ON KEYSPACE 'keyspace' TO role",
+            "GRANT ALL PERMISSIONS ON ROLE 'role' TO role",
+            "GRANT ALL PERMISSIONS ON TABLE 'keyspace'.table TO role",
+            "GRANT ALL PERMISSIONS ON TABLE 'table' TO role",
+            "GRANT ALL PERMISSIONS ON TABLE 'table' TO role",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_revoke() {
+        let stmts = [
+            "REVOKE ALL ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE ALL PERMISSIONS ON  TABLE'keyspace'.table FROM role;",
+            "REVOKE ALTER ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE AUTHORIZE ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE DESCRIBE ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE EXECUTE ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE CREATE ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE DROP ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE MODIFY ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE SELECT ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE ALL ON ALL FUNCTIONS FROM role;",
+            "REVOKE ALL ON ALL FUNCTIONS IN KEYSPACE keyspace FROM role;",
+            "REVOKE ALL ON ALL KEYSPACES FROM role;",
+            "REVOKE ALL ON ALL ROLES FROM role;",
+            "REVOKE ALL ON FUNCTION 'keyspace'.function FROM role;",
+            "REVOKE ALL ON FUNCTION 'function' FROM role;",
+            "REVOKE ALL ON KEYSPACE 'keyspace' FROM role;",
+            "REVOKE ALL ON ROLE 'role' FROM role;",
+            "REVOKE ALL ON TABLE 'keyspace'.table FROM role;",
+            "REVOKE ALL ON TABLE 'table' FROM role;",
+            "REVOKE ALL ON  TABLE'table' FROM role;",
+        ];
+        let expected = [
+            "REVOKE ALL PERMISSIONS ON TABLE 'keyspace'.table FROM role",
+            "REVOKE ALL PERMISSIONS ON TABLE 'keyspace'.table FROM role",
+            "REVOKE ALTER ON TABLE 'keyspace'.table FROM role",
+            "REVOKE AUTHORIZE ON TABLE 'keyspace'.table FROM role",
+            "REVOKE DESCRIBE ON TABLE 'keyspace'.table FROM role",
+            "REVOKE EXECUTE ON TABLE 'keyspace'.table FROM role",
+            "REVOKE CREATE ON TABLE 'keyspace'.table FROM role",
+            "REVOKE DROP ON TABLE 'keyspace'.table FROM role",
+            "REVOKE MODIFY ON TABLE 'keyspace'.table FROM role",
+            "REVOKE SELECT ON TABLE 'keyspace'.table FROM role",
+            "REVOKE ALL PERMISSIONS ON ALL FUNCTIONS FROM role",
+            "REVOKE ALL PERMISSIONS ON ALL FUNCTIONS IN KEYSPACE keyspace FROM role",
+            "REVOKE ALL PERMISSIONS ON ALL KEYSPACES FROM role",
+            "REVOKE ALL PERMISSIONS ON ALL ROLES FROM role",
+            "REVOKE ALL PERMISSIONS ON FUNCTION 'keyspace'.function FROM role",
+            "REVOKE ALL PERMISSIONS ON FUNCTION 'function' FROM role",
+            "REVOKE ALL PERMISSIONS ON KEYSPACE 'keyspace' FROM role",
+            "REVOKE ALL PERMISSIONS ON ROLE 'role' FROM role",
+            "REVOKE ALL PERMISSIONS ON TABLE 'keyspace'.table FROM role",
+            "REVOKE ALL PERMISSIONS ON TABLE 'table' FROM role",
+            "REVOKE ALL PERMISSIONS ON TABLE 'table' FROM role",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_list_permissions() {
+        let stmts = [
+            "LIST ALL",
+            "LIST ALL ON TABLE 'keyspace'.table OF role;",
+            "LIST ALL PERMISSIONS ON  TABLE 'keyspace'.table OF role;",
+            "LIST ALTER ON TABLE 'keyspace'.table OF role;",
+            "LIST AUTHORIZE ON TABLE 'keyspace'.table OF role;",
+            "LIST DESCRIBE ON TABLE 'keyspace'.table OF role;",
+            "LIST EXECUTE ON TABLE 'keyspace'.table OF role;",
+            "LIST CREATE ON TABLE 'keyspace'.table OF role;",
+            "LIST DROP ON TABLE 'keyspace'.table OF role;",
+            "LIST MODIFY ON TABLE 'keyspace'.table OF role;",
+            "LIST SELECT ON TABLE 'keyspace'.table OF role;",
+            "LIST ALL ON ALL FUNCTIONS OF role;",
+            "LIST ALL ON ALL FUNCTIONS IN KEYSPACE keyspace OF role;",
+            "LIST ALL ON ALL KEYSPACES OF role;",
+            "LIST ALL ON ALL ROLES OF role;",
+            "LIST ALL ON FUNCTION 'keyspace'.function OF role;",
+            "LIST ALL ON FUNCTION 'function' OF role;",
+            "LIST ALL ON KEYSPACE 'keyspace' OF role;",
+            "LIST ALL ON ROLE 'role' OF role;",
+            "LIST ALL ON TABLE 'keyspace'.table OF role;",
+            "LIST ALL ON TABLE 'table' OF role;",
+            "LIST ALL ON  TABLE 'table' OF role;",
+        ];
+        let expected = [
+            "LIST ALL PERMISSIONS",
+            "LIST ALL PERMISSIONS ON TABLE 'keyspace'.table OF role",
+            "LIST ALL PERMISSIONS ON TABLE 'keyspace'.table OF role",
+            "LIST ALTER ON TABLE 'keyspace'.table OF role",
+            "LIST AUTHORIZE ON TABLE 'keyspace'.table OF role",
+            "LIST DESCRIBE ON TABLE 'keyspace'.table OF role",
+            "LIST EXECUTE ON TABLE 'keyspace'.table OF role",
+            "LIST CREATE ON TABLE 'keyspace'.table OF role",
+            "LIST DROP ON TABLE 'keyspace'.table OF role",
+            "LIST MODIFY ON TABLE 'keyspace'.table OF role",
+            "LIST SELECT ON TABLE 'keyspace'.table OF role",
+            "LIST ALL PERMISSIONS ON ALL FUNCTIONS OF role",
+            "LIST ALL PERMISSIONS ON ALL FUNCTIONS IN KEYSPACE keyspace OF role",
+            "LIST ALL PERMISSIONS ON ALL KEYSPACES OF role",
+            "LIST ALL PERMISSIONS ON ALL ROLES OF role",
+            "LIST ALL PERMISSIONS ON FUNCTION 'keyspace'.function OF role",
+            "LIST ALL PERMISSIONS ON FUNCTION 'function' OF role",
+            "LIST ALL PERMISSIONS ON KEYSPACE 'keyspace' OF role",
+            "LIST ALL PERMISSIONS ON ROLE 'role' OF role",
+            "LIST ALL PERMISSIONS ON TABLE 'keyspace'.table OF role",
+            "LIST ALL PERMISSIONS ON TABLE 'table' OF role",
+            "LIST ALL PERMISSIONS ON TABLE 'table' OF role",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_list_roles() {
+        let stmts = [
+            "LIST ROLES;",
+            "LIST ROLES NORECURSIVE;",
+            "LIST ROLES OF role_name;",
+            "LIST ROLES OF role_name NORECURSIVE",
+        ];
+        let expected = [
+            "LIST ROLES",
+            "LIST ROLES NORECURSIVE",
+            "LIST ROLES OF role_name",
+            "LIST ROLES OF role_name NORECURSIVE",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_apply_batch() {
+        let stmts = ["Apply Batch;"];
+        let expected = ["APPLY BATCH"];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_index() {
+        let stmts = [
+            "CREATE INDEX index_name ON keyspace.table (column);",
+            "CREATE INDEX index_name ON table (column);",
+            "CREATE INDEX ON table (column);",
+            "CREATE INDEX ON table (keys ( key ) );",
+            "CREATE INDEX ON table (entries ( spec ) );",
+            "CREATE INDEX ON table (full ( spec ) );",
+        ];
+        let expected = [
+            "CREATE INDEX index_name ON keyspace.table( column )",
+            "CREATE INDEX index_name ON table( column )",
+            "CREATE INDEX ON table( column )",
+            "CREATE INDEX ON table( KEYS( key ) )",
+            "CREATE INDEX ON table( ENTRIES( spec ) )",
+            "CREATE INDEX ON table( FULL( spec ) )",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_table() {
+        let stmts = [
+        "CREATE TABLE IF NOT EXISTS keyspace.table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) );",
+    "CREATE TABLE table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH option = 'option' AND option2 = 3.5;",
+    "CREATE TABLE table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH caching = { 'keys' : 'ALL', 'rows_per_partition' : '100' } AND comment = 'Based on table';",
+    "CREATE TABLE keyspace.table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH CLUSTERING ORDER BY ( col2 )",
+        "CREATE TABLE keyspace.table (col1 text, col2 int, col3 FROZEN<col4>, PRIMARY KEY (col1, col2) ) WITH option = 'option' AND option2 = 3.5 AND  CLUSTERING ORDER BY ( col2 )",
+        "CREATE TABLE keyspace.table (col1 text, col2 int, PRIMARY KEY (col1) ) WITH option1='value' AND CLUSTERING ORDER BY ( col2 ) AND ID='someId' AND COMPACT STORAGE",
+    ];
+        let expected = [
+        "CREATE TABLE IF NOT EXISTS keyspace.table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2))",
+        "CREATE TABLE table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2)) WITH option = 'option' AND option2 = 3.5",
+        "CREATE TABLE table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2)) WITH caching = {'keys':'ALL', 'rows_per_partition':'100'} AND comment = 'Based on table'",
+        "CREATE TABLE keyspace.table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2)) WITH CLUSTERING ORDER BY (col2 ASC)",
+        "CREATE TABLE keyspace.table (col1 TEXT, col2 INT, col3 FROZEN<col4>, PRIMARY KEY (col1, col2)) WITH option = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 ASC)",
+        "CREATE TABLE keyspace.table (col1 TEXT, col2 INT, PRIMARY KEY (col1)) WITH option1 = 'value' AND CLUSTERING ORDER BY (col2 ASC) AND ID = 'someId' AND COMPACT STORAGE",
+    ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_alter_table() {
+        let stmts = [
+            "ALTER TABLE keyspace.table ADD column1 UUID, column2 BIGINT;",
+            "ALTER TABLE keyspace.table DROP column1, column2;",
+            "ALTER TABLE keyspace.table DROP COMPACT STORAGE;",
+            "ALTER TABLE keyspace.table RENAME column1 TO column2;",
+            "ALTER TABLE keyspace.table WITH option1 = 'option' AND option2 = 3.5;",
+        ];
+        let expected = [
+            "ALTER TABLE keyspace.table ADD column1 UUID, column2 BIGINT",
+            "ALTER TABLE keyspace.table DROP column1, column2",
+            "ALTER TABLE keyspace.table DROP COMPACT STORAGE",
+            "ALTER TABLE keyspace.table RENAME column1 TO column2",
+            "ALTER TABLE keyspace.table WITH option1 = 'option' AND option2 = 3.5",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_drop_trigger() {
+        let stmts = [
+            "DROP TRIGGER trigger_name ON table_name;",
+            "DROP TRIGGER trigger_name ON ks.table_name;",
+            "DROP TRIGGER keyspace.trigger_name ON table_name;",
+            "DROP TRIGGER keyspace.trigger_name ON ks.table_name;",
+            "DROP TRIGGER if exists trigger_name ON table_name;",
+            "DROP TRIGGER if exists trigger_name ON ks.table_name;",
+            "DROP TRIGGER if exists keyspace.trigger_name ON table_name;",
+            "DROP TRIGGER if exists keyspace.trigger_name ON ks.table_name;",
+        ];
+        let expected = [
+            "DROP TRIGGER trigger_name ON table_name",
+            "DROP TRIGGER trigger_name ON ks.table_name",
+            "DROP TRIGGER keyspace.trigger_name ON table_name",
+            "DROP TRIGGER keyspace.trigger_name ON ks.table_name",
+            "DROP TRIGGER IF EXISTS trigger_name ON table_name",
+            "DROP TRIGGER IF EXISTS trigger_name ON ks.table_name",
+            "DROP TRIGGER IF EXISTS keyspace.trigger_name ON table_name",
+            "DROP TRIGGER IF EXISTS keyspace.trigger_name ON ks.table_name",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_trigger() {
+        let stmts = [
+            "CREATE TRIGGER trigger_name USING 'trigger_class'",
+            "CREATE TRIGGER if not exists trigger_name USING 'trigger_class'",
+            "CREATE TRIGGER if not exists keyspace.trigger_name USING 'trigger_class'",
+        ];
+        let expected = [
+            "CREATE TRIGGER trigger_name USING 'trigger_class'",
+            "CREATE TRIGGER IF NOT EXISTS trigger_name USING 'trigger_class'",
+            "CREATE TRIGGER IF NOT EXISTS keyspace.trigger_name USING 'trigger_class'",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_type() {
+        let stmts = [
+        "CREATE TYPE if not exists keyspace.type ( 'col1' TIMESTAMP);",
+    "CREATE TYPE if not exists keyspace.type ( col1 SET);",
+    "CREATE TYPE keyspace.type ( col1 ASCII);",
+    "CREATE TYPE keyspace.type ( col1 BIGINT);",
+    "CREATE TYPE keyspace.type ( col1 BLOB);",
+    "CREATE TYPE keyspace.type ( col1 BOOLEAN);",
+    "CREATE TYPE keyspace.type ( col1 COUNTER);",
+    "CREATE TYPE keyspace.type ( col1 DATE);",
+    "CREATE TYPE keyspace.type ( col1 DECIMAL);",
+    "CREATE TYPE keyspace.type ( col1 DOUBLE);",
+    "CREATE TYPE keyspace.type ( col1 FLOAT);",
+    "CREATE TYPE keyspace.type ( col1 FROZEN);",
+    "CREATE TYPE keyspace.type ( col1 INET);",
+    "CREATE TYPE keyspace.type ( col1 INT);",
+    "CREATE TYPE keyspace.type ( col1 LIST);",
+    "CREATE TYPE keyspace.type ( col1 MAP);",
+    "CREATE TYPE keyspace.type ( col1 SMALLINT);",
+    "CREATE TYPE keyspace.type ( col1 TEXT);",
+    "CREATE TYPE type ( col1 TIME);",
+    "CREATE TYPE type ( col1 TIMEUUID);",
+    "CREATE TYPE type ( col1 TINYINT);",
+    "CREATE TYPE type ( col1 TUPLE);",
+    "CREATE TYPE type ( col1 VARCHAR);",
+    "CREATE TYPE type ( col1 VARINT);",
+    "CREATE TYPE type ( col1 TIMESTAMP);",
+    "CREATE TYPE type ( col1 UUID);",
+    "CREATE TYPE type ( col1 'foo');",
+    "CREATE TYPE if not exists keyspace.type ( col1 'foo' < 'subcol1', TIMESTAMP, BLOB > );",
+    "CREATE TYPE type ( col1 UUID, Col2 int);",
+    ];
+        let expected = [
+            "CREATE TYPE IF NOT EXISTS keyspace.type ('col1' TIMESTAMP)",
+            "CREATE TYPE IF NOT EXISTS keyspace.type (col1 SET)",
+            "CREATE TYPE keyspace.type (col1 ASCII)",
+            "CREATE TYPE keyspace.type (col1 BIGINT)",
+            "CREATE TYPE keyspace.type (col1 BLOB)",
+            "CREATE TYPE keyspace.type (col1 BOOLEAN)",
+            "CREATE TYPE keyspace.type (col1 COUNTER)",
+            "CREATE TYPE keyspace.type (col1 DATE)",
+            "CREATE TYPE keyspace.type (col1 DECIMAL)",
+            "CREATE TYPE keyspace.type (col1 DOUBLE)",
+            "CREATE TYPE keyspace.type (col1 FLOAT)",
+            "CREATE TYPE keyspace.type (col1 FROZEN)",
+            "CREATE TYPE keyspace.type (col1 INET)",
+            "CREATE TYPE keyspace.type (col1 INT)",
+            "CREATE TYPE keyspace.type (col1 LIST)",
+            "CREATE TYPE keyspace.type (col1 MAP)",
+            "CREATE TYPE keyspace.type (col1 SMALLINT)",
+            "CREATE TYPE keyspace.type (col1 TEXT)",
+            "CREATE TYPE type (col1 TIME)",
+            "CREATE TYPE type (col1 TIMEUUID)",
+            "CREATE TYPE type (col1 TINYINT)",
+            "CREATE TYPE type (col1 TUPLE)",
+            "CREATE TYPE type (col1 VARCHAR)",
+            "CREATE TYPE type (col1 VARINT)",
+            "CREATE TYPE type (col1 TIMESTAMP)",
+            "CREATE TYPE type (col1 UUID)",
+            "CREATE TYPE type (col1 'foo')",
+            "CREATE TYPE IF NOT EXISTS keyspace.type (col1 'foo'<'subcol1', TIMESTAMP, BLOB>)",
+            "CREATE TYPE type (col1 UUID, Col2 INT)",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_alter_type() {
+        let stmts = [
+            "ALTER TYPE keyspace.type ALTER column TYPE UUID;",
+            "ALTER TYPE keyspace.type ADD column2 UUID, column3 TIMESTAMP;",
+            "ALTER TYPE keyspace.type RENAME column1 TO column2;",
+            "ALTER TYPE type ALTER column TYPE UUID;",
+            "ALTER TYPE type ADD column2 UUID, column3 TIMESTAMP;",
+            "ALTER TYPE type RENAME column1 TO column2;",
+            "ALTER TYPE type RENAME column1 TO column2 AND col3 TO col4;",
+        ];
+        let expected = [
+            "ALTER TYPE keyspace.type ALTER column TYPE UUID",
+            "ALTER TYPE keyspace.type ADD column2 UUID, column3 TIMESTAMP",
+            "ALTER TYPE keyspace.type RENAME column1 TO column2",
+            "ALTER TYPE type ALTER column TYPE UUID",
+            "ALTER TYPE type ADD column2 UUID, column3 TIMESTAMP",
+            "ALTER TYPE type RENAME column1 TO column2",
+            "ALTER TYPE type RENAME column1 TO column2 AND col3 TO col4",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+    #[test]
+    fn test_create_function() {
+        let stmts = [
+            "CREATE OR REPLACE FUNCTION keyspace.func ( param1 int , param2 text) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$;",
+        "CREATE OR REPLACE FUNCTION keyspace.func ( param1 int , param2 text) RETURNS NULL ON NULL INPUT RETURNS text LANGUAGE javascript AS $$ return 'hello'; $$;",
+        "CREATE FUNCTION IF NOT EXISTS func ( param1 int , param2 text) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$;",
+        ];
+        let expected = [
+            "CREATE OR REPLACE FUNCTION keyspace.func (param1 INT, param2 TEXT) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$",
+            "CREATE OR REPLACE FUNCTION keyspace.func (param1 INT, param2 TEXT) RETURNS NULL ON NULL INPUT RETURNS TEXT LANGUAGE javascript AS $$ return 'hello'; $$",
+            "CREATE FUNCTION IF NOT EXISTS func (param1 INT, param2 TEXT) CALLED ON NULL INPUT RETURNS INT LANGUAGE javascript AS $$ return 5; $$",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_aggregate() {
+        let stmts = [
+            "CREATE OR REPLACE AGGREGATE keyspace.aggregate ( UUID ) SFUNC sfunc STYPE TIMESTAMP FINALFUNC finalFunc INITCOND 5;",
+        "CREATE AGGREGATE IF NOT EXISTS keyspace.aggregate  ( UUID ) SFUNC sfunc STYPE TIMESTAMP FINALFUNC finalFunc INITCOND 5;",
+        "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND ( 5, 'text', 6.3);",
+        "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (( 5, 'text', 6.3),(4,'foo',3.14));",
+        "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND ( key : (5,7,9));",
+            "CREATE AGGREGATE keyspace.aggregate  ( ASCII ) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND ( key1 : (5,7,9), key2 : (2,4,6));",
+        ];
+        let expected = [
+            "CREATE OR REPLACE AGGREGATE keyspace.aggregate (UUID) SFUNC sfunc STYPE TIMESTAMP FINALFUNC finalFunc INITCOND 5",
+            "CREATE AGGREGATE IF NOT EXISTS keyspace.aggregate (UUID) SFUNC sfunc STYPE TIMESTAMP FINALFUNC finalFunc INITCOND 5",
+            "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (5, 'text', 6.3)",
+            "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND ((5, 'text', 6.3), (4, 'foo', 3.14))",
+            "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (key:(5, 7, 9))",
+            "CREATE AGGREGATE keyspace.aggregate (ASCII) SFUNC sfunc STYPE BIGINT FINALFUNC finalFunc INITCOND (key1:(5, 7, 9), key2:(2, 4, 6))",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_create_materialized_view() {
+        let stmts = [
+            "CREATE MATERIALIZED VIEW view AS SELECT col1, col2 FROM tbl WHERE col3 IS NOT NULL PRIMARY KEY (col1);",
+            "CREATE MATERIALIZED VIEW IF NOT EXISTS keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1) WITH option1 = 'option';",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1) WITH option1 = 'option' AND CLUSTERING ORDER BY (col2 DESC);",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC);",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH CLUSTERING ORDER BY (col2 DESC);",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5;",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1);",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL PRIMARY KEY (col1,col2)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2, col3  FROM keyspace.table  WHERE col1 IS NOT NULL AND col4 IS NOT NULL PRIMARY KEY (col1, col4) WITH caching = { 'keys' : 'ALL', 'rows_per_partition' : '100' } AND comment = 'Based on table' ;",
+        ];
+        let expected = [
+            "CREATE MATERIALIZED VIEW view AS SELECT col1, col2 FROM tbl WHERE col3 IS NOT NULL PRIMARY KEY (col1)",
+            "CREATE MATERIALIZED VIEW IF NOT EXISTS keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1)",
+            "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1) WITH option1 = 'option'",
+            "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col3 IS NOT NULL PRIMARY KEY (col1) WITH option1 = 'option' AND CLUSTERING ORDER BY (col2 DESC)",
+            "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5 AND CLUSTERING ORDER BY (col2 DESC)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH CLUSTERING ORDER BY (col2 DESC)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1) WITH option1 = 'option' AND option2 = 3.5",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL AND col4 IS NOT NULL AND col5 <> 'foo' PRIMARY KEY (col1)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2 FROM ks_target.tbl_target WHERE col3 IS NOT NULL PRIMARY KEY (col1, col2)",
+        "CREATE MATERIALIZED VIEW keyspace.view AS SELECT col1, col2, col3 FROM keyspace.table WHERE col1 IS NOT NULL AND col4 IS NOT NULL PRIMARY KEY (col1, col4) WITH caching = {'keys':'ALL', 'rows_per_partition':'100'} AND comment = 'Based on table'",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_alter_materialized_view() {
+        let stmts = [
+            "ALTER MATERIALIZED VIEW 'keyspace'.mview;",
+            "ALTER MATERIALIZED VIEW mview;",
+            "ALTER MATERIALIZED VIEW keyspace.mview WITH option1 = 'option' AND option2 = 3.5;",
+        ];
+        let expected = [
+            "ALTER MATERIALIZED VIEW 'keyspace'.mview",
+            "ALTER MATERIALIZED VIEW mview",
+            "ALTER MATERIALIZED VIEW keyspace.mview WITH option1 = 'option' AND option2 = 3.5",
+        ];
+        test_parsing(&expected, &stmts);
+    }
+
+    #[test]
+    fn test_select_element_display() {
+        assert_eq!("*", SelectElement::Star.to_string());
+        assert_eq!(
+            "col.*",
+            SelectElement::DotStar("col".to_string()).to_string()
+        );
+        assert_eq!(
+            "col",
+            SelectElement::Column(Named {
+                name: "col".to_string(),
+                alias: None
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "func",
+            SelectElement::Function(Named {
+                name: "func".to_string(),
+                alias: None
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "col AS alias",
+            SelectElement::Column(Named {
+                name: "col".to_string(),
+                alias: Some("alias".to_string())
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "func AS alias",
+            SelectElement::Function(Named {
+                name: "func".to_string(),
+                alias: Some("alias".to_string())
+            })
+            .to_string()
+        );
     }
 }

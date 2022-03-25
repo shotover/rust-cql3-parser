@@ -1,6 +1,6 @@
-use std::fmt::{Display, Formatter};
-use itertools::Itertools;
 use crate::cassandra_ast::common::{ColumnDefinition, WithItem};
+use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// data for the `AlterTable` command
 #[derive(PartialEq, Debug, Clone)]

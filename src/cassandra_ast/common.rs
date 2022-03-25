@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 /// A column definition.
 /// This is used in many places, however the primary_key value should only be used in
@@ -49,64 +49,64 @@ impl Display for DataType {
 /// An enumeration of data types.
 #[derive(PartialEq, Debug, Clone)]
 pub enum DataTypeName {
-    TIMESTAMP,
-    SET,
-    ASCII,
-    BIGINT,
-    BLOB,
-    BOOLEAN,
-    COUNTER,
-    DATE,
-    DECIMAL,
-    DOUBLE,
-    FLOAT,
-    FROZEN,
-    INET,
-    INT,
-    LIST,
-    MAP,
-    SMALLINT,
-    TEXT,
-    TIME,
-    TIMEUUID,
-    TINYINT,
-    TUPLE,
-    VARCHAR,
-    VARINT,
-    UUID,
+    Timestamp,
+    Set,
+    Ascii,
+    BigInt,
+    Blob,
+    Boolean,
+    Counter,
+    Date,
+    Decimal,
+    Double,
+    Float,
+    Frozen,
+    Inet,
+    Int,
+    List,
+    Map,
+    SmallInt,
+    Text,
+    Time,
+    TimeUuid,
+    TinyInt,
+    Tuple,
+    VarChar,
+    VarInt,
+    Uuid,
     /// defines a custom type.  Where the name is the name of the type.
-    CUSTOM(String),
+    Custom(String),
 }
 
 impl Display for DataTypeName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            DataTypeName::TIMESTAMP => write!(f, "TIMESTAMP"),
-            DataTypeName::SET => write!(f, "SET"),
-            DataTypeName::ASCII => write!(f, "ASCII"),
-            DataTypeName::BIGINT => write!(f, "BIGINT"),
-            DataTypeName::BLOB => write!(f, "BLOB"),
-            DataTypeName::BOOLEAN => write!(f, "BOOLEAN"),
-            DataTypeName::COUNTER => write!(f, "COUNTER"),
-            DataTypeName::DATE => write!(f, "DATE"),
-            DataTypeName::DECIMAL => write!(f, "DECIMAL"),
-            DataTypeName::DOUBLE => write!(f, "DOUBLE"),
-            DataTypeName::FLOAT => write!(f, "FLOAT"),
-            DataTypeName::FROZEN => write!(f, "FROZEN"),
-            DataTypeName::INET => write!(f, "INET"),
-            DataTypeName::INT => write!(f, "INT"),
-            DataTypeName::LIST => write!(f, "LIST"),
-            DataTypeName::MAP => write!(f, "MAP"),
-            DataTypeName::SMALLINT => write!(f, "SMALLINT"),
-            DataTypeName::TEXT => write!(f, "TEXT"),
-            DataTypeName::TIME => write!(f, "TIME"),
-            DataTypeName::TIMEUUID => write!(f, "TIMEUUID"),
-            DataTypeName::TINYINT => write!(f, "TINYINT"),
-            DataTypeName::TUPLE => write!(f, "TUPLE"),
-            DataTypeName::VARCHAR => write!(f, "VARCHAR"),
-            DataTypeName::VARINT => write!(f, "VARINT"),
-            DataTypeName::UUID => write!(f, "UUID"),
-            DataTypeName::CUSTOM(name) => write!(f, "{}", name),
+            DataTypeName::Timestamp => write!(f, "TIMESTAMP"),
+            DataTypeName::Set => write!(f, "SET"),
+            DataTypeName::Ascii => write!(f, "ASCII"),
+            DataTypeName::BigInt => write!(f, "BIGINT"),
+            DataTypeName::Blob => write!(f, "BLOB"),
+            DataTypeName::Boolean => write!(f, "BOOLEAN"),
+            DataTypeName::Counter => write!(f, "COUNTER"),
+            DataTypeName::Date => write!(f, "DATE"),
+            DataTypeName::Decimal => write!(f, "DECIMAL"),
+            DataTypeName::Double => write!(f, "DOUBLE"),
+            DataTypeName::Float => write!(f, "FLOAT"),
+            DataTypeName::Frozen => write!(f, "FROZEN"),
+            DataTypeName::Inet => write!(f, "INET"),
+            DataTypeName::Int => write!(f, "INT"),
+            DataTypeName::List => write!(f, "LIST"),
+            DataTypeName::Map => write!(f, "MAP"),
+            DataTypeName::SmallInt => write!(f, "SMALLINT"),
+            DataTypeName::Text => write!(f, "TEXT"),
+            DataTypeName::Time => write!(f, "TIME"),
+            DataTypeName::TimeUuid => write!(f, "TIMEUUID"),
+            DataTypeName::TinyInt => write!(f, "TINYINT"),
+            DataTypeName::Tuple => write!(f, "TUPLE"),
+            DataTypeName::VarChar => write!(f, "VARCHAR"),
+            DataTypeName::VarInt => write!(f, "VARINT"),
+            DataTypeName::Uuid => write!(f, "UUID"),
+            DataTypeName::Custom(name) => write!(f, "{}", name),
         }
     }
 }
@@ -114,32 +114,32 @@ impl Display for DataTypeName {
 impl DataTypeName {
     pub fn from(name: &str) -> DataTypeName {
         match name.to_uppercase().as_str() {
-            "ASCII" => DataTypeName::ASCII,
-            "BIGINT" => DataTypeName::BIGINT,
-            "BLOB" => DataTypeName::BLOB,
-            "BOOLEAN" => DataTypeName::BOOLEAN,
-            "COUNTER" => DataTypeName::COUNTER,
-            "DATE" => DataTypeName::DATE,
-            "DECIMAL" => DataTypeName::DECIMAL,
-            "DOUBLE" => DataTypeName::DOUBLE,
-            "FLOAT" => DataTypeName::FLOAT,
-            "FROZEN" => DataTypeName::FROZEN,
-            "INET" => DataTypeName::INET,
-            "INT" => DataTypeName::INT,
-            "LIST" => DataTypeName::LIST,
-            "MAP" => DataTypeName::MAP,
-            "SET" => DataTypeName::SET,
-            "SMALLINT" => DataTypeName::SMALLINT,
-            "TEXT" => DataTypeName::TEXT,
-            "TIME" => DataTypeName::TIME,
-            "TIMESTAMP" => DataTypeName::TIMESTAMP,
-            "TIMEUUID" => DataTypeName::TIMEUUID,
-            "TINYINT" => DataTypeName::TINYINT,
-            "TUPLE" => DataTypeName::TUPLE,
-            "UUID" => DataTypeName::UUID,
-            "VARCHAR" => DataTypeName::VARCHAR,
-            "VARINT" => DataTypeName::VARINT,
-            _ => DataTypeName::CUSTOM(name.to_string()),
+            "ASCII" => DataTypeName::Ascii,
+            "BIGINT" => DataTypeName::BigInt,
+            "BLOB" => DataTypeName::Blob,
+            "BOOLEAN" => DataTypeName::Boolean,
+            "COUNTER" => DataTypeName::Counter,
+            "DATE" => DataTypeName::Date,
+            "DECIMAL" => DataTypeName::Decimal,
+            "DOUBLE" => DataTypeName::Double,
+            "FLOAT" => DataTypeName::Float,
+            "FROZEN" => DataTypeName::Frozen,
+            "INET" => DataTypeName::Inet,
+            "INT" => DataTypeName::Int,
+            "LIST" => DataTypeName::List,
+            "MAP" => DataTypeName::Map,
+            "SET" => DataTypeName::Set,
+            "SMALLINT" => DataTypeName::SmallInt,
+            "TEXT" => DataTypeName::Text,
+            "TIME" => DataTypeName::Time,
+            "TIMESTAMP" => DataTypeName::Timestamp,
+            "TIMEUUID" => DataTypeName::TimeUuid,
+            "TINYINT" => DataTypeName::TinyInt,
+            "TUPLE" => DataTypeName::Tuple,
+            "UUID" => DataTypeName::Uuid,
+            "VARCHAR" => DataTypeName::VarChar,
+            "VARINT" => DataTypeName::VarInt,
+            _ => DataTypeName::Custom(name.to_string()),
         }
     }
 }
@@ -148,30 +148,30 @@ impl DataTypeName {
 #[derive(PartialEq, Debug, Clone)]
 pub enum Operand {
     /// A constant
-    CONST(String),
+    Const(String),
     /// a map displays as `{ String:String, String:String, ... }`
-    MAP(Vec<(String, String)>),
+    Map(Vec<(String, String)>),
     /// a set of values.  Displays as `( String, String, ...)`
-    SET(Vec<String>),
+    Set(Vec<String>),
     /// a list of values.  Displays as `[String, String, ...]`
-    LIST(Vec<String>),
+    List(Vec<String>),
     /// a tuple of values.  Displays as `{ Operand, Operand, ... }`
-    TUPLE(Vec<Operand>),
+    Tuple(Vec<Operand>),
     /// A column name
-    COLUMN(String),
+    Column(String),
     /// A function name
-    FUNC(String),
+    Func(String),
     /// the `NULL` value.
-    NULL,
+    Null,
 }
 
 impl Display for Operand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operand::COLUMN(text) | Operand::FUNC(text) | Operand::CONST(text) => {
+            Operand::Column(text) | Operand::Func(text) | Operand::Const(text) => {
                 write!(f, "{}", text)
             }
-            Operand::MAP(entries) => {
+            Operand::Map(entries) => {
                 let mut result = String::from('{');
                 result.push_str(
                     entries
@@ -183,25 +183,25 @@ impl Display for Operand {
                 result.push('}');
                 write!(f, "{}", result)
             }
-            Operand::SET(values) => {
+            Operand::Set(values) => {
                 let mut result = String::from('{');
                 result.push_str(values.iter().join(", ").as_str());
                 result.push('}');
                 write!(f, "{}", result)
             }
-            Operand::LIST(values) => {
+            Operand::List(values) => {
                 let mut result = String::from('[');
                 result.push_str(values.iter().join(", ").as_str());
                 result.push(']');
                 write!(f, "{}", result)
             }
-            Operand::TUPLE(values) => {
+            Operand::Tuple(values) => {
                 let mut result = String::from('(');
                 result.push_str(values.iter().join(", ").as_str());
                 result.push(')');
                 write!(f, "{}", result)
             }
-            Operand::NULL => write!(f, "NULL"),
+            Operand::Null => write!(f, "NULL"),
         }
     }
 }
@@ -220,29 +220,29 @@ pub struct PrivilegeData {
 /// the list of privileges recognized by the system.
 #[derive(PartialEq, Debug, Clone)]
 pub enum Privilege {
-    ALL,
-    ALTER,
-    AUTHORIZE,
-    DESCRIBE,
-    EXECUTE,
-    CREATE,
-    DROP,
-    MODIFY,
-    SELECT,
+    All,
+    Alter,
+    Authorize,
+    Describe,
+    Execute,
+    Create,
+    Drop,
+    Modify,
+    Select,
 }
 
 impl Display for Privilege {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Privilege::ALL => write!(f, "ALL PERMISSIONS"),
-            Privilege::ALTER => write!(f, "ALTER"),
-            Privilege::AUTHORIZE => write!(f, "AUTHORIZE"),
-            Privilege::DESCRIBE => write!(f, "DESCRIBE"),
-            Privilege::EXECUTE => write!(f, "EXECUTE"),
-            Privilege::CREATE => write!(f, "CREATE"),
-            Privilege::DROP => write!(f, "DROP"),
-            Privilege::MODIFY => write!(f, "MODIFY"),
-            Privilege::SELECT => write!(f, "SELECT"),
+            Privilege::All => write!(f, "ALL PERMISSIONS"),
+            Privilege::Alter => write!(f, "ALTER"),
+            Privilege::Authorize => write!(f, "AUTHORIZE"),
+            Privilege::Describe => write!(f, "DESCRIBE"),
+            Privilege::Execute => write!(f, "EXECUTE"),
+            Privilege::Create => write!(f, "CREATE"),
+            Privilege::Drop => write!(f, "DROP"),
+            Privilege::Modify => write!(f, "MODIFY"),
+            Privilege::Select => write!(f, "SELECT"),
         }
     }
 }
