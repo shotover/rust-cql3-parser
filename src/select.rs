@@ -1,4 +1,4 @@
-use crate::cassandra_ast::common::{Operand, OrderClause, RelationElement};
+use crate::common::{Operand, OrderClause, RelationElement};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 

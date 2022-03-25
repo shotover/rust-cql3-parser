@@ -1,5 +1,5 @@
-use crate::cassandra_ast::begin_batch::BeginBatch;
-use crate::cassandra_ast::common::{Operand, TtlTimestamp};
+use crate::begin_batch::BeginBatch;
+use crate::common::{Operand, TtlTimestamp};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 

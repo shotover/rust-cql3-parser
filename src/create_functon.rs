@@ -1,5 +1,5 @@
-use crate::cassandra_ast::common::ColumnDefinition;
-use crate::cassandra_ast::common::DataType;
+use crate::common::ColumnDefinition;
+use crate::common::DataType;
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 

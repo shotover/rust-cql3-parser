@@ -1,5 +1,5 @@
-use crate::cassandra_ast::common::PrimaryKey;
-use crate::cassandra_ast::common::{RelationElement, WithItem};
+use crate::common::PrimaryKey;
+use crate::common::{RelationElement, WithItem};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 

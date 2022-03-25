@@ -1,57 +1,31 @@
-use aggregate::{Aggregate, InitCondition};
-use alter_column::AlterColumnType;
-use alter_materialized_view::AlterMaterializedView;
-use alter_table::{AlterTable, AlterTableOperation};
-use alter_type::{AlterType, AlterTypeOperation};
-use begin_batch::BeginBatch;
-use cassandra_statement::CassandraStatement;
-use common::{
+use crate::aggregate::{Aggregate, InitCondition};
+use crate::alter_column::AlterColumnType;
+use crate::alter_materialized_view::AlterMaterializedView;
+use crate::alter_table::{AlterTable, AlterTableOperation};
+use crate::alter_type::{AlterType, AlterTypeOperation};
+use crate::begin_batch::BeginBatch;
+use crate::cassandra_statement::CassandraStatement;
+use crate::common::{
     ColumnDefinition, DataType, DataTypeName, Operand, OptionValue, OrderClause, PrimaryKey,
-    Privilege, PrivilegeData, RelationElement, RelationOperator, Resource, TtlTimestamp, WithItem,
+    Privilege, PrivilegeType, RelationElement, RelationOperator, Resource, TtlTimestamp, WithItem,
 };
-use common_drop::CommonDrop;
-use create_functon::CreateFunction;
-use create_index::{CreateIndex, IndexColumnType};
-use create_keyspace::CreateKeyspace;
-use create_materialized_view::CreateMaterializedView;
-use create_role::CreateRole;
-use create_table::CreateTable;
-use create_trigger::CreateTrigger;
-use create_type::CreateType;
-use create_user::CreateUser;
-use delete::{Delete, IndexedColumn};
-use drop_trigger::DropTrigger;
-use insert::{Insert, InsertValues};
-use list_role::ListRole;
-use select::{Named, Select, SelectElement};
+use crate::common_drop::CommonDrop;
+use crate::create_functon::CreateFunction;
+use crate::create_index::{CreateIndex, IndexColumnType};
+use crate::create_keyspace::CreateKeyspace;
+use crate::create_materialized_view::CreateMaterializedView;
+use crate::create_role::CreateRole;
+use crate::create_table::CreateTable;
+use crate::create_trigger::CreateTrigger;
+use crate::create_type::CreateType;
+use crate::create_user::CreateUser;
+use crate::delete::{Delete, IndexedColumn};
+use crate::drop_trigger::DropTrigger;
+use crate::insert::{Insert, InsertValues};
+use crate::list_role::ListRole;
+use crate::select::{Named, Select, SelectElement};
+use crate::update::{AssignmentElement, AssignmentOperator, Update};
 use tree_sitter::{Node, Tree, TreeCursor};
-use update::{AssignmentElement, AssignmentOperator, Update};
-
-mod aggregate;
-mod alter_column;
-mod alter_materialized_view;
-mod alter_table;
-mod alter_type;
-mod begin_batch;
-mod cassandra_statement;
-mod common;
-mod common_drop;
-mod create_function;
-mod create_functon;
-mod create_index;
-mod create_keyspace;
-mod create_materialized_view;
-mod create_role;
-mod create_table;
-mod create_trigger;
-mod create_type;
-mod create_user;
-mod delete;
-mod drop_trigger;
-mod insert;
-mod list_role;
-mod select;
-mod update;
 
 /// Functions for common manipulation of the nodes in the AST tree.
 struct NodeFuncs {}
@@ -67,10 +41,28 @@ impl NodeFuncs {
 }
 
 /// The parser that walks the AST tree and produces a CassandraStatement.
-struct CassandraParser {}
+pub struct CassandraParser {}
 impl CassandraParser {
+    pub fn parse_truncate(node: &Node, source: &str) -> String {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // consume until 'table_name'
+        while !cursor.node().kind().eq("table_name") {
+            cursor.goto_next_sibling();
+        }
+        CassandraParser::parse_table_name(&cursor.node(), source)
+    }
+
+    pub fn parse_use(node: &Node, source: &str) -> String {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        // consume 'USE'
+        cursor.goto_next_sibling();
+        NodeFuncs::as_string(&cursor.node(), source)
+    }
+
     /// parse the alter materialized view command
-    fn parse_alter_materialized_view(node: &Node, source: &str) -> AlterMaterializedView {
+    pub fn parse_alter_materialized_view(node: &Node, source: &str) -> AlterMaterializedView {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume ALTER
@@ -144,7 +136,7 @@ impl CassandraParser {
         }
     }
     /// parse a create aggregate data statement
-    fn parse_aggregate_data(node: &Node, source: &str) -> Aggregate {
+    pub fn parse_create_aggregate(node: &Node, source: &str) -> Aggregate {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
@@ -212,7 +204,7 @@ impl CassandraParser {
     }
 
     /// parse a create function statement
-    fn parse_function_data(node: &Node, source: &str) -> CreateFunction {
+    pub fn parse_function_data(node: &Node, source: &str) -> CreateFunction {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
@@ -288,7 +280,7 @@ impl CassandraParser {
     }
 
     /// parse an alter type statement
-    fn parse_alter_type(node: &Node, source: &str) -> AlterType {
+    pub fn parse_alter_type(node: &Node, source: &str) -> AlterType {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'ALTER'
@@ -355,7 +347,7 @@ impl CassandraParser {
     }
 
     /// parse an create type statement
-    fn parse_type_data(node: &Node, source: &str) -> CreateType {
+    pub fn parse_create_type(node: &Node, source: &str) -> CreateType {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut result = CreateType {
@@ -377,7 +369,7 @@ impl CassandraParser {
     }
 
     /// parse a create trigger statement
-    fn parse_trigger_data(node: &Node, source: &str) -> CreateTrigger {
+    pub fn parse_create_trigger(node: &Node, source: &str) -> CreateTrigger {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         CreateTrigger {
@@ -443,7 +435,7 @@ impl CassandraParser {
     }
 
     /// parse an alter table statement.
-    fn parse_alter_table(node: &Node, source: &str) -> AlterTable {
+    pub fn parse_alter_table(node: &Node, source: &str) -> AlterTable {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'ALTER'
@@ -668,7 +660,7 @@ impl CassandraParser {
     }
 
     /// parse a create materialized view statement
-    fn parse_create_materialized_vew(node: &Node, source: &str) -> CreateMaterializedView {
+    pub fn parse_create_materialized_vew(node: &Node, source: &str) -> CreateMaterializedView {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
@@ -709,7 +701,7 @@ impl CassandraParser {
     }
 
     /// parse a create table statement
-    fn parse_create_table(node: &Node, source: &str) -> CreateTable {
+    pub fn parse_create_table(node: &Node, source: &str) -> CreateTable {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut result = CreateTable {
@@ -766,7 +758,7 @@ impl CassandraParser {
     }
 
     /// parse create index statement.
-    fn parse_index_data(node: &Node, source: &str) -> CreateIndex {
+    pub fn parse_index(node: &Node, source: &str) -> CreateIndex {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let mut result = CreateIndex {
@@ -826,7 +818,7 @@ impl CassandraParser {
     }
 
     /// parse the list roles statement
-    fn parse_list_role_data(node: &Node, source: &str) -> ListRole {
+    pub fn parse_list_role_data(node: &Node, source: &str) -> ListRole {
         let mut cursor = node.walk();
         let mut result = ListRole {
             of: None,
@@ -894,7 +886,7 @@ impl CassandraParser {
     }
 
     /// parse the create role statement
-    fn parse_role_data(node: &Node, source: &str) -> CreateRole {
+    pub fn parse_create_role(node: &Node, source: &str) -> CreateRole {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
@@ -988,7 +980,7 @@ impl CassandraParser {
     }
 
     /// parse the create keyspace command
-    fn parse_keyspace_data(node: &Node, source: &str) -> CreateKeyspace {
+    pub fn parse_keyspace_data(node: &Node, source: &str) -> CreateKeyspace {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
@@ -1020,7 +1012,7 @@ impl CassandraParser {
     }
 
     /// parse the create user statement
-    fn parse_user_data(node: &Node, source: &str) -> CreateUser {
+    pub fn parse_create_user(node: &Node, source: &str) -> CreateUser {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
@@ -1061,7 +1053,7 @@ impl CassandraParser {
     }
 
     /// parse the update statement.
-    pub fn parse_update_statement(node: &Node, source: &str) -> Update {
+    pub fn parse_update(node: &Node, source: &str) -> Update {
         let mut statement_data = Update {
             begin_batch: None,
             table_name: String::from(""),
@@ -1122,34 +1114,37 @@ impl CassandraParser {
     }
 
     /// parse the privilege
-    fn parse_privilege(node: &Node, source: &str) -> Privilege {
+    fn parse_privilege_type(node: &Node, source: &str) -> PrivilegeType {
         match NodeFuncs::as_string(node, source).to_uppercase().as_str() {
-            "ALL" | "ALL PERMISSIONS" => Privilege::All,
-            "ALTER" => Privilege::Alter,
-            "AUTHORIZE" => Privilege::Authorize,
-            "DESCRIBE" => Privilege::Describe,
-            "EXECUTE" => Privilege::Execute,
-            "CREATE" => Privilege::Create,
-            "DROP" => Privilege::Drop,
-            "MODIFY" => Privilege::Modify,
-            "SELECT" => Privilege::Select,
+            "ALL" | "ALL PERMISSIONS" => PrivilegeType::All,
+            "ALTER" => PrivilegeType::Alter,
+            "AUTHORIZE" => PrivilegeType::Authorize,
+            "DESCRIBE" => PrivilegeType::Describe,
+            "EXECUTE" => PrivilegeType::Execute,
+            "CREATE" => PrivilegeType::Create,
+            "DROP" => PrivilegeType::Drop,
+            "MODIFY" => PrivilegeType::Modify,
+            "SELECT" => PrivilegeType::Select,
             _ => unreachable!(),
         }
     }
 
     /// parse the privilege data.
-    fn parse_privilege_data(node: &Node, source: &str) -> PrivilegeData {
+    pub fn parse_privilege(node: &Node, source: &str) -> Privilege {
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
-        let mut privilege: Option<Privilege> = None;
+        let mut privilege: Option<PrivilegeType> = None;
         let mut resource: Option<Resource> = None;
         let mut role: Option<String> = None;
         // consume 'GRANT/REVOKE'
         while cursor.goto_next_sibling() {
             match cursor.node().kind() {
                 "privilege" => {
-                    privilege = Some(CassandraParser::parse_privilege(&cursor.node(), source));
+                    privilege = Some(CassandraParser::parse_privilege_type(
+                        &cursor.node(),
+                        source,
+                    ));
                 }
                 "resource" => {
                     resource = Some(CassandraParser::parse_resource(&cursor.node(), source));
@@ -1158,7 +1153,7 @@ impl CassandraParser {
                 _ => {}
             }
         }
-        PrivilegeData {
+        Privilege {
             privilege: privilege.unwrap(),
             resource,
             role,
@@ -1306,7 +1301,7 @@ impl CassandraParser {
     }
 
     /// parse an insert statement.
-    pub fn parse_insert_statement(node: &Node, source: &str) -> Insert {
+    pub fn parse_insert(node: &Node, source: &str) -> Insert {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         Insert {
@@ -1659,7 +1654,7 @@ impl CassandraParser {
     }
 
     /// parse a select statement
-    pub fn parse_select_statement(node: &Node, source: &str) -> Select {
+    pub fn parse_select(node: &Node, source: &str) -> Select {
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
@@ -1917,7 +1912,7 @@ impl CassandraParser {
     }
 
     /// parse the standard drop specification.
-    fn parse_standard_drop(node: &Node, source: &str) -> CommonDrop {
+    pub fn parse_standard_drop(node: &Node, source: &str) -> CommonDrop {
         let mut cursor = node.walk();
         let mut if_exists = false;
         cursor.goto_first_child();
@@ -1942,7 +1937,7 @@ impl CassandraParser {
     }
 
     /// parse a drop trigger statement.
-    fn parse_drop_trigger(node: &Node, source: &str) -> DropTrigger {
+    pub fn parse_drop_trigger(node: &Node, source: &str) -> DropTrigger {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         DropTrigger {

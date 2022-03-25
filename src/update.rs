@@ -1,6 +1,6 @@
-use crate::cassandra_ast::begin_batch::BeginBatch;
-use crate::cassandra_ast::common::{Operand, RelationElement, TtlTimestamp};
-use crate::cassandra_ast::delete::IndexedColumn;
+use crate::begin_batch::BeginBatch;
+use crate::common::{Operand, RelationElement, TtlTimestamp};
+use crate::delete::IndexedColumn;
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 

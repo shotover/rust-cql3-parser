@@ -1,25 +1,25 @@
-use crate::cassandra_ast::aggregate::Aggregate;
-use crate::cassandra_ast::alter_materialized_view::AlterMaterializedView;
-use crate::cassandra_ast::alter_table::AlterTable;
-use crate::cassandra_ast::alter_type::AlterType;
-use crate::cassandra_ast::common::PrivilegeData;
-use crate::cassandra_ast::common_drop::CommonDrop;
-use crate::cassandra_ast::create_functon::CreateFunction;
-use crate::cassandra_ast::create_index::CreateIndex;
-use crate::cassandra_ast::create_keyspace::CreateKeyspace;
-use crate::cassandra_ast::create_materialized_view::CreateMaterializedView;
-use crate::cassandra_ast::create_role::CreateRole;
-use crate::cassandra_ast::create_table::CreateTable;
-use crate::cassandra_ast::create_trigger::CreateTrigger;
-use crate::cassandra_ast::create_type::CreateType;
-use crate::cassandra_ast::create_user::CreateUser;
-use crate::cassandra_ast::delete::Delete;
-use crate::cassandra_ast::drop_trigger::DropTrigger;
-use crate::cassandra_ast::insert::Insert;
-use crate::cassandra_ast::list_role::ListRole;
-use crate::cassandra_ast::select::Select;
-use crate::cassandra_ast::update::Update;
-use crate::cassandra_ast::{CassandraParser, NodeFuncs};
+use crate::aggregate::Aggregate;
+use crate::alter_materialized_view::AlterMaterializedView;
+use crate::alter_table::AlterTable;
+use crate::alter_type::AlterType;
+use crate::cassandra_ast::CassandraParser;
+use crate::common::Privilege;
+use crate::common_drop::CommonDrop;
+use crate::create_functon::CreateFunction;
+use crate::create_index::CreateIndex;
+use crate::create_keyspace::CreateKeyspace;
+use crate::create_materialized_view::CreateMaterializedView;
+use crate::create_role::CreateRole;
+use crate::create_table::CreateTable;
+use crate::create_trigger::CreateTrigger;
+use crate::create_type::CreateType;
+use crate::create_user::CreateUser;
+use crate::delete::Delete;
+use crate::drop_trigger::DropTrigger;
+use crate::insert::Insert;
+use crate::list_role::ListRole;
+use crate::select::Select;
+use crate::update::Update;
 use std::fmt::{Display, Formatter};
 use tree_sitter::{Node, Tree};
 
@@ -56,11 +56,11 @@ pub enum CassandraStatement {
     DropTrigger(DropTrigger),
     DropType(CommonDrop),
     DropUser(CommonDrop),
-    Grant(PrivilegeData),
+    Grant(Privilege),
     Insert(Insert),
-    ListPermissions(PrivilegeData),
+    ListPermissions(Privilege),
     ListRoles(ListRole),
-    Revoke(PrivilegeData),
+    Revoke(Privilege),
     Select(Select),
     Truncate(String),
     Update(Update),
@@ -88,7 +88,7 @@ impl CassandraStatement {
                 CassandraParser::parse_alter_materialized_view(node, source),
             ),
             "alter_role" => {
-                CassandraStatement::AlterRole(CassandraParser::parse_role_data(node, source))
+                CassandraStatement::AlterRole(CassandraParser::parse_create_role(node, source))
             }
             "alter_table" => {
                 CassandraStatement::AlterTable(CassandraParser::parse_alter_table(node, source))
@@ -97,17 +97,17 @@ impl CassandraStatement {
                 CassandraStatement::AlterType(CassandraParser::parse_alter_type(node, source))
             }
             "alter_user" => {
-                CassandraStatement::AlterUser(CassandraParser::parse_user_data(node, source))
+                CassandraStatement::AlterUser(CassandraParser::parse_create_user(node, source))
             }
             "apply_batch" => CassandraStatement::ApplyBatch,
             "create_aggregate" => CassandraStatement::CreateAggregate(
-                CassandraParser::parse_aggregate_data(node, source),
+                CassandraParser::parse_create_aggregate(node, source),
             ),
             "create_function" => CassandraStatement::CreateFunction(
                 CassandraParser::parse_function_data(node, source),
             ),
             "create_index" => {
-                CassandraStatement::CreateIndex(CassandraParser::parse_index_data(node, source))
+                CassandraStatement::CreateIndex(CassandraParser::parse_index(node, source))
             }
             "create_keyspace" => CassandraStatement::CreateKeyspace(
                 CassandraParser::parse_keyspace_data(node, source),
@@ -116,19 +116,19 @@ impl CassandraStatement {
                 CassandraParser::parse_create_materialized_vew(node, source),
             ),
             "create_role" => {
-                CassandraStatement::CreateRole(CassandraParser::parse_role_data(node, source))
+                CassandraStatement::CreateRole(CassandraParser::parse_create_role(node, source))
             }
             "create_table" => {
                 CassandraStatement::CreateTable(CassandraParser::parse_create_table(node, source))
             }
-            "create_trigger" => {
-                CassandraStatement::CreateTrigger(CassandraParser::parse_trigger_data(node, source))
-            }
+            "create_trigger" => CassandraStatement::CreateTrigger(
+                CassandraParser::parse_create_trigger(node, source),
+            ),
             "create_type" => {
-                CassandraStatement::CreateType(CassandraParser::parse_type_data(node, source))
+                CassandraStatement::CreateType(CassandraParser::parse_create_type(node, source))
             }
             "create_user" => {
-                CassandraStatement::CreateUser(CassandraParser::parse_user_data(node, source))
+                CassandraStatement::CreateUser(CassandraParser::parse_create_user(node, source))
             }
             "delete_statement" => CassandraStatement::DeleteStatement(
                 CassandraParser::parse_delete_statement(node, source),
@@ -163,51 +163,25 @@ impl CassandraStatement {
             "drop_user" => {
                 CassandraStatement::DropUser(CassandraParser::parse_standard_drop(node, source))
             }
-            "grant" => {
-                CassandraStatement::Grant(CassandraParser::parse_privilege_data(node, source))
-            }
+            "grant" => CassandraStatement::Grant(CassandraParser::parse_privilege(node, source)),
             "insert_statement" => {
-                CassandraStatement::Insert(CassandraParser::parse_insert_statement(node, source))
+                CassandraStatement::Insert(CassandraParser::parse_insert(node, source))
             }
-            "list_permissions" => CassandraStatement::ListPermissions(
-                CassandraParser::parse_privilege_data(node, source),
-            ),
+            "list_permissions" => {
+                CassandraStatement::ListPermissions(CassandraParser::parse_privilege(node, source))
+            }
             "list_roles" => {
                 CassandraStatement::ListRoles(CassandraParser::parse_list_role_data(node, source))
             }
-            "revoke" => {
-                CassandraStatement::Revoke(CassandraParser::parse_privilege_data(node, source))
-            }
+            "revoke" => CassandraStatement::Revoke(CassandraParser::parse_privilege(node, source)),
             "select_statement" => {
-                CassandraStatement::Select(CassandraParser::parse_select_statement(node, source))
+                CassandraStatement::Select(CassandraParser::parse_select(node, source))
             }
             "truncate" => {
-                let mut cursor = node.walk();
-                cursor.goto_first_child();
-                // consume until 'table_name'
-                while !cursor.node().kind().eq("table_name") {
-                    cursor.goto_next_sibling();
-                }
-                CassandraStatement::Truncate(CassandraParser::parse_table_name(
-                    &cursor.node(),
-                    source,
-                ))
+                CassandraStatement::Truncate(CassandraParser::parse_truncate(node, source))
             }
-            "update" => {
-                CassandraStatement::Update(CassandraParser::parse_update_statement(node, source))
-            }
-            "use" => {
-                let mut cursor = node.walk();
-                cursor.goto_first_child();
-                // consume 'USE'
-                if cursor.goto_next_sibling() {
-                    CassandraStatement::Use(NodeFuncs::as_string(&cursor.node(), source))
-                } else {
-                    CassandraStatement::Unknown(
-                        "Keyspace not provided with USE statement".to_string(),
-                    )
-                }
-            }
+            "update" => CassandraStatement::Update(CassandraParser::parse_update(node, source)),
+            "use" => CassandraStatement::Use(CassandraParser::parse_use(node, source)),
             _ => CassandraStatement::Unknown(source.to_string()),
         }
     }
@@ -308,9 +282,9 @@ impl Display for CassandraStatement {
 
 #[cfg(test)]
 mod tests {
-    use crate::cassandra_ast::cassandra_statement::CassandraStatement;
-    use crate::cassandra_ast::select::{Named, SelectElement};
     use crate::cassandra_ast::CassandraAST;
+    use crate::cassandra_statement::CassandraStatement;
+    use crate::select::{Named, SelectElement};
 
     fn test_parsing(expected: &[&str], statements: &[&str]) {
         for i in 0..statements.len() {

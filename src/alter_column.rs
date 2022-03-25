@@ -1,4 +1,4 @@
-use crate::cassandra_ast::common::DataType;
+use crate::common::DataType;
 use std::fmt::{Display, Formatter};
 
 /// data to alter a column type.

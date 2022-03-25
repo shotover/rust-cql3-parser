@@ -1,4 +1,4 @@
-use crate::cassandra_ast::common::{ColumnDefinition, WithItem};
+use crate::common::{ColumnDefinition, WithItem};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 

@@ -208,9 +208,9 @@ impl Display for Operand {
 
 /// data item used in `Grant`, `ListPermissions` and `Revoke` statements.
 #[derive(PartialEq, Debug, Clone)]
-pub struct PrivilegeData {
+pub struct Privilege {
     /// the privilege that is being manipulated
-    pub privilege: Privilege,
+    pub privilege: PrivilegeType,
     /// the resource on which the permission is applied
     pub resource: Option<Resource>,
     /// the role name that tis being modified.
@@ -219,7 +219,7 @@ pub struct PrivilegeData {
 
 /// the list of privileges recognized by the system.
 #[derive(PartialEq, Debug, Clone)]
-pub enum Privilege {
+pub enum PrivilegeType {
     All,
     Alter,
     Authorize,
@@ -231,18 +231,18 @@ pub enum Privilege {
     Select,
 }
 
-impl Display for Privilege {
+impl Display for PrivilegeType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Privilege::All => write!(f, "ALL PERMISSIONS"),
-            Privilege::Alter => write!(f, "ALTER"),
-            Privilege::Authorize => write!(f, "AUTHORIZE"),
-            Privilege::Describe => write!(f, "DESCRIBE"),
-            Privilege::Execute => write!(f, "EXECUTE"),
-            Privilege::Create => write!(f, "CREATE"),
-            Privilege::Drop => write!(f, "DROP"),
-            Privilege::Modify => write!(f, "MODIFY"),
-            Privilege::Select => write!(f, "SELECT"),
+            PrivilegeType::All => write!(f, "ALL PERMISSIONS"),
+            PrivilegeType::Alter => write!(f, "ALTER"),
+            PrivilegeType::Authorize => write!(f, "AUTHORIZE"),
+            PrivilegeType::Describe => write!(f, "DESCRIBE"),
+            PrivilegeType::Execute => write!(f, "EXECUTE"),
+            PrivilegeType::Create => write!(f, "CREATE"),
+            PrivilegeType::Drop => write!(f, "DROP"),
+            PrivilegeType::Modify => write!(f, "MODIFY"),
+            PrivilegeType::Select => write!(f, "SELECT"),
         }
     }
 }

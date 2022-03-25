@@ -1,5 +1,5 @@
-use crate::cassandra_ast::begin_batch::BeginBatch;
-use crate::cassandra_ast::common::RelationElement;
+use crate::begin_batch::BeginBatch;
+use crate::common::RelationElement;
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
