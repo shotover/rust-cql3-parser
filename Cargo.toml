@@ -1,5 +1,5 @@
 [package]
-name = "rust_cql3_parser"
+name = "cql3_parser"
 version = "0.0.1"
 authors = ["Claude <claude.warren@instaclustr.com>"]
 edition = "2021"
@@ -18,7 +18,7 @@ regex = "1"
 
 # Parsers
 tree-sitter = "0.20.5"
-tree-sitter-cql = { git = "https://github.com/Claude-at-Instaclustr/tree-sitter-cql", brach="main" }
+tree-sitter-cql = { git = "https://github.com/Claude-at-Instaclustr/tree-sitter-cql", branch="main" }
 
 
 [dev-dependencies]

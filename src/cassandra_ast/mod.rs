@@ -7,24 +7,24 @@ use tree_sitter::{Node, Tree, TreeCursor};
 /// https://docs.datastax.com/en/cql-oss/3.3/cql/cql_reference/cqlCommandsTOC.html
 #[derive(PartialEq, Debug, Clone)]
 pub enum CassandraStatement {
-    AlterKeyspace(KeyspaceData),
-    AlterMaterializedView(AlterMaterializedViewData),
-    AlterRole(RoleData),
-    AlterTable(AlterTableData),
-    AlterType(AlterTypeData),
-    AlterUser(UserData),
+    AlterKeyspace(Keyspace),
+    AlterMaterializedView(AlterMaterializedView),
+    AlterRole(Role),
+    AlterTable(AlterTable),
+    AlterType(AlterType),
+    AlterUser(User),
     ApplyBatch,
-    CreateAggregate(AggregateData),
-    CreateFunction(FunctionData),
-    CreateIndex(IndexData),
-    CreateKeyspace(KeyspaceData),
-    CreateMaterializedView(CreateMaterializedViewData),
-    CreateRole(RoleData),
-    CreateTable(CreateTableData),
-    CreateTrigger(TriggerData),
-    CreateType(TypeData),
-    CreateUser(UserData),
-    DeleteStatement(DeleteStatementData),
+    CreateAggregate(Aggregate),
+    CreateFunction(Function),
+    CreateIndex(Index),
+    CreateKeyspace(Keyspace),
+    CreateMaterializedView(CreateMaterializedView),
+    CreateRole(Role),
+    CreateTable(CreateTable),
+    CreateTrigger(Trigger),
+    CreateType(Type),
+    CreateUser(User),
+    DeleteStatement(DeleteStatement),
     DropAggregate(DropData),
     DropFunction(DropData),
     DropIndex(DropData),
@@ -32,31 +32,31 @@ pub enum CassandraStatement {
     DropMaterializedView(DropData),
     DropRole(DropData),
     DropTable(DropData),
-    DropTrigger(DropTriggerData),
+    DropTrigger(DropTrigger),
     DropType(DropData),
     DropUser(DropData),
     Grant(PrivilegeData),
-    InsertStatement(InsertStatementData),
+    Insert(Insert),
     ListPermissions(PrivilegeData),
-    ListRoles(ListRoleData),
+    ListRoles(ListRole),
     Revoke(PrivilegeData),
-    SelectStatement(SelectStatementData),
+    Select(Select),
     Truncate(String),
-    Update(UpdateStatementData),
-    UseStatement(String),
+    Update(Update),
+    Use(String),
     UNKNOWN(String),
 }
 
 /// https://docs.datastax.com/en/cql-oss/3.3/cql/cql_reference/cqlListRoles.html
 #[derive(PartialEq, Debug, Clone)]
-pub struct ListRoleData {
-    /// List roles only fror this role.
+pub struct ListRole {
+    /// List roles only for this role.
     pub of: Option<String>,
     /// if true the NORECURSIVE option has been set.
     pub no_recurse: bool,
 }
 
-impl Display for ListRoleData {
+impl Display for ListRole {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut s: String = "".to_string();
         if self.of.is_some() {
@@ -85,7 +85,7 @@ pub struct PrivilegeData {
 
 /// data for `Update` statements
 #[derive(PartialEq, Debug, Clone)]
-pub struct UpdateStatementData {
+pub struct Update {
     /// common modifiers for statements
     pub modifiers: StatementModifiers,
     /// if present then statement starts with BEGIN BATCH
@@ -102,30 +102,30 @@ pub struct UpdateStatementData {
     pub if_spec: Option<Vec<RelationElement>>,
 }
 
-impl Display for UpdateStatementData {
+impl Display for Update {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}UPDATE {}{} SET {} WHERE {}{}",
-            self.begin_batch.as_ref().map_or("".to_string(), |x| x.to_string()),
-        self.table_name,
-            self.using_ttl.as_ref().map_or("".to_string(), |x| x.to_string() ),
-
-        self.assignments
-                .iter()
-                .map(|a| a.to_string())
-                .join(","),
-
-        self.where_clause.iter().join(" AND "),
-        if self.if_spec.is_some() {
-                format!( " IF {}",
-                    self.if_spec
-                    .as_ref()
-                    .unwrap()
-                    .iter()
-                    .join(" AND ")
-            )
-        } else if self.modifiers.exists {
-            " IF EXISTS".to_string()
-        } else {"".to_string()}
+        write!(
+            f,
+            "{}UPDATE {}{} SET {} WHERE {}{}",
+            self.begin_batch
+                .as_ref()
+                .map_or("".to_string(), |x| x.to_string()),
+            self.table_name,
+            self.using_ttl
+                .as_ref()
+                .map_or("".to_string(), |x| x.to_string()),
+            self.assignments.iter().map(|a| a.to_string()).join(","),
+            self.where_clause.iter().join(" AND "),
+            if self.if_spec.is_some() {
+                format!(
+                    " IF {}",
+                    self.if_spec.as_ref().unwrap().iter().join(" AND ")
+                )
+            } else if self.modifiers.exists {
+                " IF EXISTS".to_string()
+            } else {
+                "".to_string()
+            }
         )
     }
 }
@@ -187,7 +187,7 @@ impl Display for IndexedColumn {
 
 /// the data for a delete statement.
 #[derive(PartialEq, Debug, Clone)]
-pub struct DeleteStatementData {
+pub struct DeleteStatement {
     /// standard statement modifiers
     pub modifiers: StatementModifiers,
     /// if set the statement starts with `BEGIN BATCH`
@@ -204,32 +204,39 @@ pub struct DeleteStatementData {
     pub if_spec: Option<Vec<RelationElement>>,
 }
 
-impl Display for DeleteStatementData {
+impl Display for DeleteStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!( f, "{}DELETE {}FROM {}{} WHERE {}{}",
-        self.begin_batch.as_ref().map_or( "".to_string(),|x|x.to_string()),
-        self.columns.as_ref().map_or("".to_string(), |x| format!( "{} ",x.iter().join(", "))),
-        self.table_name,
-        self.timestamp.as_ref().map_or("".to_string(), |x| format!(" USING TIMESTAMP {}", x)),
-        self.where_clause.iter().join(" AND "),
-        if self.if_spec.is_some() {
-                format!( " IF {}",
-                self.if_spec
-                    .as_ref()
-                    .unwrap()
-                    .iter()
-                    .join(" AND ")
-            )
-        } else if self.modifiers.exists {
-            " IF EXISTS".to_string()
-        } else { "".to_string() }
+        write!(
+            f,
+            "{}DELETE {}FROM {}{} WHERE {}{}",
+            self.begin_batch
+                .as_ref()
+                .map_or("".to_string(), |x| x.to_string()),
+            self.columns
+                .as_ref()
+                .map_or("".to_string(), |x| format!("{} ", x.iter().join(", "))),
+            self.table_name,
+            self.timestamp
+                .as_ref()
+                .map_or("".to_string(), |x| format!(" USING TIMESTAMP {}", x)),
+            self.where_clause.iter().join(" AND "),
+            if self.if_spec.is_some() {
+                format!(
+                    " IF {}",
+                    self.if_spec.as_ref().unwrap().iter().join(" AND ")
+                )
+            } else if self.modifiers.exists {
+                " IF EXISTS".to_string()
+            } else {
+                "".to_string()
+            }
         )
     }
 }
 
 /// the data for insert statements.
 #[derive(PartialEq, Debug, Clone)]
-pub struct InsertStatementData {
+pub struct Insert {
     /// if set the statement starts with `BEGIN BATCH`
     pub begin_batch: Option<BeginBatch>,
     /// standard statement modifiers
@@ -244,16 +251,25 @@ pub struct InsertStatementData {
     pub using_ttl: Option<TtlTimestamp>,
 }
 
-impl Display for InsertStatementData {
-
+impl Display for Insert {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!( f, "{}INSERT INTO {} ({}) {}{}{}",
-            self.begin_batch.as_ref().map_or("".to_string(), |x| x.to_string()),
-        self.table_name,
-        self.columns.join(", "),
-        self.values,
-        if self.modifiers.not_exists {" IF NOT EXISTS" } else {""},
-        self.using_ttl.as_ref().map_or( "".to_string(),|x| x.to_string()),
+        write!(
+            f,
+            "{}INSERT INTO {} ({}) {}{}{}",
+            self.begin_batch
+                .as_ref()
+                .map_or("".to_string(), |x| x.to_string()),
+            self.table_name,
+            self.columns.join(", "),
+            self.values,
+            if self.modifiers.not_exists {
+                " IF NOT EXISTS"
+            } else {
+                ""
+            },
+            self.using_ttl
+                .as_ref()
+                .map_or("".to_string(), |x| x.to_string()),
         )
     }
 }
@@ -293,7 +309,7 @@ impl Display for TtlTimestamp {
 #[derive(PartialEq, Debug, Clone)]
 pub struct BeginBatch {
     /* the logged and unlogged can not be merged into a single statement as one or the other or
-     neither may be selected */
+    neither may be selected */
     /// if true the `LOGGED` option will be displayed.
     logged: bool,
     /// if true the `UNLOGGED` option will be displayed.
@@ -425,7 +441,7 @@ impl Display for Operand {
 
 /// data for select statements
 #[derive(PartialEq, Debug, Clone)]
-pub struct SelectStatementData {
+pub struct Select {
     /// the standard statement modifiers
     pub modifiers: StatementModifiers,
     /// The table name.
@@ -438,7 +454,7 @@ pub struct SelectStatementData {
     pub order: Option<OrderClause>,
 }
 
-impl SelectStatementData {
+impl Select {
     /// return the column names selected
     pub fn select_names(&self) -> Vec<String> {
         self.elements
@@ -448,10 +464,11 @@ impl SelectStatementData {
                 SelectElement::DotStar(_) => false,
                 SelectElement::Column(_) => true,
                 SelectElement::Function(_) => false,
-            }).map(|e| match e {
-            SelectElement::Column(named) => named.to_string(),
-            _ => unreachable!()
-        } )
+            })
+            .map(|e| match e {
+                SelectElement::Column(named) => named.to_string(),
+                _ => unreachable!(),
+            })
             .collect()
     }
 
@@ -462,17 +479,11 @@ impl SelectStatementData {
             .iter()
             .map(|e| match e {
                 SelectElement::Column(named) => {
-                    if named.alias.is_some() {
-                        named.alias.clone()
-                        //Some(named.alias..as_ref().unwrap().clone())
-                    } else {
-                        Some(named.name.clone())
-                    }
+                    named.alias.clone().unwrap_or_else(|| named.name.clone())
                 }
-                _ => None,
+                _ => "".to_string(),
             })
-            .filter(|e| e.is_some())
-            .map(|e| e.unwrap())
+            .filter(|e| !e.as_str().eq(""))
             .collect()
     }
     /// return the column names from the where clause
@@ -481,30 +492,46 @@ impl SelectStatementData {
             Some(x) => x
                 .iter()
                 .map(|e| match &e.obj {
-                    Operand::COLUMN(name) => Some(name.clone()),
-                    _ => None,
+                    Operand::COLUMN(name) => name.clone(),
+                    _ => "".to_string(),
                 })
-                .filter(|e| e.is_some())
-                .map(|e| e.unwrap())
+                .filter(|e| !e.eq(&""))
                 .collect(),
             None => vec![],
         }
     }
 }
 
-impl Display for SelectStatementData {
+impl Display for Select {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SELECT {}{}{} FROM {}{}{}{}{}",
-        if self.modifiers.distinct {"DISTINCT " }else{""},
-        if self.modifiers.json {"JSON "}else{""},
-        self.elements.iter().join(", "),
-        self.table_name,
-        self.where_clause.as_ref().map_or( "".to_string(), |x|
-            format!( " WHERE {}", x.iter().join(" AND ")
-            )),
-        self.order.as_ref().map_or("".to_string(), |x| format!(" ORDER BY {}", x)),
-        self.modifiers.limit.map_or("".to_string(), |x| format!(" LIMIT {}", x)),
-        if self.modifiers.filtering { " ALLOW FILTERING" }else{""}
+        write!(
+            f,
+            "SELECT {}{}{} FROM {}{}{}{}{}",
+            if self.modifiers.distinct {
+                "DISTINCT "
+            } else {
+                ""
+            },
+            if self.modifiers.json { "JSON " } else { "" },
+            self.elements.iter().join(", "),
+            self.table_name,
+            self.where_clause
+                .as_ref()
+                .map_or("".to_string(), |x| format!(
+                    " WHERE {}",
+                    x.iter().join(" AND ")
+                )),
+            self.order
+                .as_ref()
+                .map_or("".to_string(), |x| format!(" ORDER BY {}", x)),
+            self.modifiers
+                .limit
+                .map_or("".to_string(), |x| format!(" LIMIT {}", x)),
+            if self.modifiers.filtering {
+                " ALLOW FILTERING"
+            } else {
+                ""
+            }
         )
     }
 }
@@ -526,8 +553,8 @@ impl Display for SelectElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             SelectElement::Star => write!(f, "*"),
-            SelectElement::DotStar(column) => write!(f, "{}.*", column ),
-            SelectElement::Column(named) | SelectElement::Function(named) => write!(f, "{}", named ),
+            SelectElement::DotStar(column) => write!(f, "{}.*", column),
+            SelectElement::Column(named) | SelectElement::Function(named) => write!(f, "{}", named),
         }
     }
 }
@@ -608,13 +635,13 @@ impl Display for RelationElement {
 /// A relation operator used in `WHERE` and `IF` clauses.
 #[derive(PartialEq, Debug, Clone)]
 pub enum RelationOperator {
-    LT,
-    LE,
-    EQ,
-    NE,
-    GE,
-    GT,
-    IN,
+    LessThan,
+    LessThanOrEqual,
+    Equal,
+    NotEqual,
+    GreaterThanOrEqual,
+    GreaterThan,
+    In,
     Contains,
     ContainsKey,
     /// this is not used in normal cases it is used in the MaterializedView to specify
@@ -629,13 +656,13 @@ impl RelationOperator {
         T: PartialOrd,
     {
         match self {
-            RelationOperator::LT => left.lt(right),
-            RelationOperator::LE => left.le(right),
-            RelationOperator::EQ => left.eq(right),
-            RelationOperator::NE => !left.eq(right),
-            RelationOperator::GE => left.ge(right),
-            RelationOperator::GT => left.gt(right),
-            RelationOperator::IN => false,
+            RelationOperator::LessThan => left.lt(right),
+            RelationOperator::LessThanOrEqual => left.le(right),
+            RelationOperator::Equal => left.eq(right),
+            RelationOperator::NotEqual => !left.eq(right),
+            RelationOperator::GreaterThanOrEqual => left.ge(right),
+            RelationOperator::GreaterThan => left.gt(right),
+            RelationOperator::In => false,
             RelationOperator::Contains => false,
             RelationOperator::ContainsKey => false,
             RelationOperator::IsNot => false,
@@ -646,13 +673,13 @@ impl RelationOperator {
 impl Display for RelationOperator {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            RelationOperator::LT => write!(f, "<"),
-            RelationOperator::LE => write!(f, "<="),
-            RelationOperator::EQ => write!(f, "="),
-            RelationOperator::NE => write!(f, "<>"),
-            RelationOperator::GE => write!(f, ">="),
-            RelationOperator::GT => write!(f, ">"),
-            RelationOperator::IN => write!(f, "IN"),
+            RelationOperator::LessThan => write!(f, "<"),
+            RelationOperator::LessThanOrEqual => write!(f, "<="),
+            RelationOperator::Equal => write!(f, "="),
+            RelationOperator::NotEqual => write!(f, "<>"),
+            RelationOperator::GreaterThanOrEqual => write!(f, ">="),
+            RelationOperator::GreaterThan => write!(f, ">"),
+            RelationOperator::In => write!(f, "IN"),
             RelationOperator::Contains => write!(f, "CONTAINS"),
             RelationOperator::ContainsKey => write!(f, "CONTAINS KEY"),
             RelationOperator::IsNot => write!(f, "IS NOT"),
@@ -699,14 +726,14 @@ impl StatementModifiers {
 
 /// data for an `AlterType` statement
 #[derive(PartialEq, Debug, Clone)]
-pub struct AlterTypeData {
+pub struct AlterType {
     /// the name of the type to alter
     name: String,
     /// the operation to perform on the type.
     operation: AlterTypeOperation,
 }
 
-impl Display for AlterTypeData {
+impl Display for AlterType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "ALTER TYPE {} {}", self.name, self.operation)
     }
@@ -716,7 +743,7 @@ impl Display for AlterTypeData {
 #[derive(PartialEq, Debug, Clone)]
 pub enum AlterTypeOperation {
     /// Alter the column type
-    AlterColumnType(AlterColumnTypeData),
+    AlterColumnType(AlterColumnType),
     /// Add a columm
     Add(Vec<ColumnDefinition>),
     /// rename a column
@@ -746,14 +773,14 @@ impl Display for AlterTypeOperation {
 
 /// data to alter a column type.
 #[derive(PartialEq, Debug, Clone)]
-pub struct AlterColumnTypeData {
+pub struct AlterColumnType {
     /// the name of the column
     name: String,
     /// the data type to set the colum to.
     data_type: DataType,
 }
 
-impl Display for AlterColumnTypeData {
+impl Display for AlterColumnType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "ALTER {} TYPE {}", self.name, self.data_type)
     }
@@ -761,7 +788,7 @@ impl Display for AlterColumnTypeData {
 
 /// data for the `AlterTable` command
 #[derive(PartialEq, Debug, Clone)]
-pub struct AlterTableData {
+pub struct AlterTable {
     /// the name of the table.
     name: String,
     /// the table alteration operation.
@@ -805,14 +832,14 @@ impl Display for AlterTableOperation {
 
 /// The data for an `AlterMaterializedView` statement
 #[derive(PartialEq, Debug, Clone)]
-pub struct AlterMaterializedViewData {
+pub struct AlterMaterializedView {
     /// the name of the materialzied view.
     name: String,
     /// the with options for the view.
     with: WithElement,
 }
 
-impl Display for AlterMaterializedViewData {
+impl Display for AlterMaterializedView {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -832,7 +859,7 @@ impl Display for AlterMaterializedViewData {
 
 /// the data to create a materialized view
 #[derive(PartialEq, Debug, Clone)]
-pub struct CreateMaterializedViewData {
+pub struct CreateMaterializedView {
     /// only create if it does not exist.
     if_not_exists: bool,
     /// the name of the materialized view.
@@ -850,7 +877,7 @@ pub struct CreateMaterializedViewData {
     with: WithElement,
 }
 
-impl Display for CreateMaterializedViewData {
+impl Display for CreateMaterializedView {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -879,7 +906,7 @@ impl Display for CreateMaterializedViewData {
 
 /// The data for a `Create table` statement
 #[derive(PartialEq, Debug, Clone)]
-pub struct CreateTableData {
+pub struct CreateTable {
     /// only create if the table does not exist
     if_not_exists: bool,
     /// the name of the table
@@ -892,7 +919,7 @@ pub struct CreateTableData {
     with: WithElement,
 }
 
-impl Display for CreateTableData {
+impl Display for CreateTable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut v: Vec<String> = self.columns.iter().map(|x| x.to_string()).collect();
         if self.key.is_some() {
@@ -922,7 +949,7 @@ impl Display for CreateTableData {
 
 /// The data for a `CREATE TYPE` statement.
 #[derive(PartialEq, Debug, Clone)]
-pub struct TypeData {
+pub struct Type {
     /// only if the type does not exist.
     not_exists: bool,
     /// the name of the type
@@ -931,7 +958,7 @@ pub struct TypeData {
     columns: Vec<ColumnDefinition>,
 }
 
-impl Display for TypeData {
+impl Display for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -1125,7 +1152,7 @@ impl Display for PrimaryKey {
 
 /// data for the `CreateTrigger` statement.
 #[derive(PartialEq, Debug, Clone)]
-pub struct TriggerData {
+pub struct Trigger {
     /// only create if it does not exist.
     not_exists: bool,
     /// the name of the trigger.
@@ -1134,7 +1161,7 @@ pub struct TriggerData {
     class: String,
 }
 
-impl Display for TriggerData {
+impl Display for Trigger {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -1200,7 +1227,7 @@ impl Display for OptionValue {
 
 /// the data for the `create role` statement.
 #[derive(PartialEq, Debug, Clone)]
-pub struct RoleData {
+pub struct Role {
     /// the name of the role
     name: String,
     /// if specified the password for the role
@@ -1215,7 +1242,7 @@ pub struct RoleData {
     if_not_exists: bool,
 }
 
-impl Display for RoleData {
+impl Display for Role {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut with = vec![];
 
@@ -1279,7 +1306,7 @@ impl Display for RoleData {
 
 /// The data necessary to create a keyspace.
 #[derive(PartialEq, Debug, Clone)]
-pub struct KeyspaceData {
+pub struct Keyspace {
     /// the name of the keyspace
     name: String,
     /// replication strategy options.
@@ -1289,7 +1316,7 @@ pub struct KeyspaceData {
     /// only create if the keyspace does not exist.
     if_not_exists: bool,
 }
-impl Display for KeyspaceData {
+impl Display for Keyspace {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if self.durable_writes.is_some() {
             write!(
@@ -1332,7 +1359,7 @@ impl Display for KeyspaceData {
 
 /// data for the `create user` statement.
 #[derive(PartialEq, Debug, Clone)]
-pub struct UserData {
+pub struct User {
     /// the user name
     name: String,
     /// the password for the user.
@@ -1345,7 +1372,7 @@ pub struct UserData {
     if_not_exists: bool,
 }
 
-impl Display for UserData {
+impl Display for User {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut with = String::new();
 
@@ -1388,7 +1415,7 @@ impl Display for UserData {
 
 /// The data for a `drop trigger` command
 #[derive(PartialEq, Debug, Clone)]
-pub struct DropTriggerData {
+pub struct DropTrigger {
     /// the name of the trigger
     name: String,
     /// the table the trigger is associated with.
@@ -1397,7 +1424,7 @@ pub struct DropTriggerData {
     if_exists: bool,
 }
 
-impl Display for DropTriggerData {
+impl Display for DropTrigger {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -1510,15 +1537,15 @@ impl CassandraStatement {
             "drop_aggregate" => CassandraStatement::DropAggregate(
                 CassandraParser::parse_standard_drop(node, source),
             ),
-            "drop_function" => CassandraStatement::DropFunction(
-                CassandraParser::parse_standard_drop(node, source),
-            ),
+            "drop_function" => {
+                CassandraStatement::DropFunction(CassandraParser::parse_standard_drop(node, source))
+            }
             "drop_index" => {
                 CassandraStatement::DropIndex(CassandraParser::parse_standard_drop(node, source))
             }
-            "drop_keyspace" => CassandraStatement::DropKeyspace(
-                CassandraParser::parse_standard_drop(node, source),
-            ),
+            "drop_keyspace" => {
+                CassandraStatement::DropKeyspace(CassandraParser::parse_standard_drop(node, source))
+            }
             "drop_materialized_view" => CassandraStatement::DropMaterializedView(
                 CassandraParser::parse_standard_drop(node, source),
             ),
@@ -1540,9 +1567,9 @@ impl CassandraStatement {
             "grant" => {
                 CassandraStatement::Grant(CassandraParser::parse_privilege_data(node, source))
             }
-            "insert_statement" => CassandraStatement::InsertStatement(
-                CassandraParser::parse_insert_statement(node, source),
-            ),
+            "insert_statement" => {
+                CassandraStatement::Insert(CassandraParser::parse_insert_statement(node, source))
+            }
             "list_permissions" => CassandraStatement::ListPermissions(
                 CassandraParser::parse_privilege_data(node, source),
             ),
@@ -1552,9 +1579,9 @@ impl CassandraStatement {
             "revoke" => {
                 CassandraStatement::Revoke(CassandraParser::parse_privilege_data(node, source))
             }
-            "select_statement" => CassandraStatement::SelectStatement(
-                CassandraParser::parse_select_statement(node, source),
-            ),
+            "select_statement" => {
+                CassandraStatement::Select(CassandraParser::parse_select_statement(node, source))
+            }
             "truncate" => {
                 let mut cursor = node.walk();
                 cursor.goto_first_child();
@@ -1575,7 +1602,7 @@ impl CassandraStatement {
                 cursor.goto_first_child();
                 // consume 'USE'
                 if cursor.goto_next_sibling() {
-                    CassandraStatement::UseStatement(NodeFuncs::as_string(&cursor.node(), source))
+                    CassandraStatement::Use(NodeFuncs::as_string(&cursor.node(), source))
                 } else {
                     CassandraStatement::UNKNOWN(
                         "Keyspace not provided with USE statement".to_string(),
@@ -1591,7 +1618,7 @@ impl CassandraStatement {
 struct CassandraParser {}
 impl CassandraParser {
     /// parse the alter materialized view command
-    fn parse_alter_materialized_view(node: &Node, source: &str) -> AlterMaterializedViewData {
+    fn parse_alter_materialized_view(node: &Node, source: &str) -> AlterMaterializedView {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume ALTER
@@ -1600,7 +1627,7 @@ impl CassandraParser {
         cursor.goto_next_sibling();
         // consume VIEW
         cursor.goto_next_sibling();
-        AlterMaterializedViewData {
+        AlterMaterializedView {
             name: CassandraParser::parse_table_name(&cursor.node(), source),
             with: if cursor.goto_next_sibling() {
                 CassandraParser::parse_with_element(&cursor.node(), source)
@@ -1665,12 +1692,12 @@ impl CassandraParser {
         }
     }
     /// parse a create aggregate data statement
-    fn parse_aggregate_data(node: &Node, source: &str) -> AggregateData {
+    fn parse_aggregate_data(node: &Node, source: &str) -> Aggregate {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
         cursor.goto_next_sibling();
-        AggregateData {
+        Aggregate {
             or_replace: if cursor.node().kind().eq("OR") {
                 // consume 'OR'
                 cursor.goto_next_sibling();
@@ -1733,12 +1760,12 @@ impl CassandraParser {
     }
 
     /// parse a create function statement
-    fn parse_function_data(node: &Node, source: &str) -> FunctionData {
+    fn parse_function_data(node: &Node, source: &str) -> Function {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
         cursor.goto_next_sibling();
-        FunctionData {
+        Function {
             or_replace: if cursor.node().kind().eq("OR") {
                 // consume 'OR'
                 cursor.goto_next_sibling();
@@ -1809,14 +1836,14 @@ impl CassandraParser {
     }
 
     /// parse an alter type statement
-    fn parse_alter_type(node: &Node, source: &str) -> AlterTypeData {
+    fn parse_alter_type(node: &Node, source: &str) -> AlterType {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'ALTER'
         cursor.goto_next_sibling();
         // consume 'TYPE'
         cursor.goto_next_sibling();
-        AlterTypeData {
+        AlterType {
             name: CassandraParser::parse_table_name(&cursor.node(), source),
             operation: {
                 cursor.goto_next_sibling();
@@ -1827,7 +1854,7 @@ impl CassandraParser {
                         cursor.goto_first_child();
                         // consume 'ALTER'
                         cursor.goto_next_sibling();
-                        AlterTypeOperation::AlterColumnType(AlterColumnTypeData {
+                        AlterTypeOperation::AlterColumnType(AlterColumnType {
                             name: NodeFuncs::as_string(&cursor.node(), source),
                             data_type: {
                                 cursor.goto_next_sibling();
@@ -1876,10 +1903,10 @@ impl CassandraParser {
     }
 
     /// parse an create type statement
-    fn parse_type_data(node: &Node, source: &str) -> TypeData {
+    fn parse_type_data(node: &Node, source: &str) -> Type {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        let mut result = TypeData {
+        let mut result = Type {
             not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
             name: CassandraParser::parse_table_name(&cursor.node(), source),
             columns: vec![],
@@ -1898,10 +1925,10 @@ impl CassandraParser {
     }
 
     /// parse a create trigger statement
-    fn parse_trigger_data(node: &Node, source: &str) -> TriggerData {
+    fn parse_trigger_data(node: &Node, source: &str) -> Trigger {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        TriggerData {
+        Trigger {
             not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
             name: CassandraParser::parse_table_name(&cursor.node(), source),
             class: {
@@ -1964,7 +1991,7 @@ impl CassandraParser {
     }
 
     /// parse an alter table statement.
-    fn parse_alter_table(node: &Node, source: &str) -> AlterTableData {
+    fn parse_alter_table(node: &Node, source: &str) -> AlterTable {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'ALTER'
@@ -1972,7 +1999,7 @@ impl CassandraParser {
         // consume 'TABLE'
         cursor.goto_next_sibling();
         // get the name
-        AlterTableData {
+        AlterTable {
             name: CassandraParser::parse_table_name(&cursor.node(), source),
             operation: {
                 cursor.goto_next_sibling();
@@ -2189,12 +2216,12 @@ impl CassandraParser {
     }
 
     /// parse a create materialized view statement
-    fn parse_create_materialized_vew(node: &Node, source: &str) -> CreateMaterializedViewData {
+    fn parse_create_materialized_vew(node: &Node, source: &str) -> CreateMaterializedView {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'CREATE'
         cursor.goto_next_sibling();
-        CreateMaterializedViewData {
+        CreateMaterializedView {
             if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
             name: CassandraParser::parse_table_name(&cursor.node(), source),
             columns: {
@@ -2230,10 +2257,10 @@ impl CassandraParser {
     }
 
     /// parse a create table statement
-    fn parse_create_table(node: &Node, source: &str) -> CreateTableData {
+    fn parse_create_table(node: &Node, source: &str) -> CreateTable {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        let mut result = CreateTableData {
+        let mut result = CreateTable {
             if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
             name: CassandraParser::parse_table_name(&cursor.node(), source),
             columns: vec![],
@@ -2286,10 +2313,10 @@ impl CassandraParser {
     }
 
     /// parse create index statement.
-    fn parse_index_data(node: &Node, source: &str) -> IndexData {
+    fn parse_index_data(node: &Node, source: &str) -> Index {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        let mut result = IndexData {
+        let mut result = Index {
             if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
             name: None,
             table: "".to_string(),
@@ -2346,9 +2373,9 @@ impl CassandraParser {
     }
 
     /// parse the list roles statement
-    fn parse_list_role_data(node: &Node, source: &str) -> ListRoleData {
+    fn parse_list_role_data(node: &Node, source: &str) -> ListRole {
         let mut cursor = node.walk();
-        let mut result = ListRoleData {
+        let mut result = ListRole {
             of: None,
             no_recurse: false,
         };
@@ -2414,11 +2441,11 @@ impl CassandraParser {
     }
 
     /// parse the create role statement
-    fn parse_role_data(node: &Node, source: &str) -> RoleData {
+    fn parse_role_data(node: &Node, source: &str) -> Role {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
-        let mut result = RoleData {
+        let mut result = Role {
             name: NodeFuncs::as_string(&cursor.node(), source),
             password: None,
             superuser: None,
@@ -2438,8 +2465,7 @@ impl CassandraParser {
                             cursor.goto_next_sibling();
                             // consume the '='
                             cursor.goto_next_sibling();
-                            result.password =
-                                Some(NodeFuncs::as_string(&cursor.node(), source));
+                            result.password = Some(NodeFuncs::as_string(&cursor.node(), source));
                             cursor.goto_next_sibling();
                         }
                         "LOGIN" => {
@@ -2453,8 +2479,7 @@ impl CassandraParser {
                             cursor.goto_next_sibling();
                             // consume the '='
                             cursor.goto_next_sibling();
-                            result.superuser =
-                                Some(NodeFuncs::as_boolean(&cursor.node(), source));
+                            result.superuser = Some(NodeFuncs::as_boolean(&cursor.node(), source));
                             cursor.goto_next_sibling();
                         }
                         "OPTIONS" => {
@@ -2510,11 +2535,11 @@ impl CassandraParser {
     }
 
     /// parse the create keyspace command
-    fn parse_keyspace_data(node: &Node, source: &str) -> KeyspaceData {
+    fn parse_keyspace_data(node: &Node, source: &str) -> Keyspace {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
-        let mut result = KeyspaceData {
+        let mut result = Keyspace {
             name: NodeFuncs::as_string(&cursor.node(), source),
             replication: vec![],
             durable_writes: None,
@@ -2542,12 +2567,12 @@ impl CassandraParser {
     }
 
     /// parse the create user statement
-    fn parse_user_data(node: &Node, source: &str) -> UserData {
+    fn parse_user_data(node: &Node, source: &str) -> User {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
 
-        let mut result = UserData {
+        let mut result = User {
             name: NodeFuncs::as_string(&cursor.node(), source),
             password: None,
             superuser: false,
@@ -2583,8 +2608,8 @@ impl CassandraParser {
     }
 
     /// parse the update statement.
-    pub fn parse_update_statement(node: &Node, source: &str) -> UpdateStatementData {
-        let mut statement_data = UpdateStatementData {
+    pub fn parse_update_statement(node: &Node, source: &str) -> Update {
+        let mut statement_data = Update {
             begin_batch: None,
             modifiers: StatementModifiers::new(),
             table_name: String::from(""),
@@ -2714,8 +2739,8 @@ impl CassandraParser {
     }
 
     /// parse a delete statement.
-    pub fn parse_delete_statement(node: &Node, source: &str) -> DeleteStatementData {
-        let mut statement_data = DeleteStatementData {
+    pub fn parse_delete_statement(node: &Node, source: &str) -> DeleteStatement {
+        let mut statement_data = DeleteStatement {
             begin_batch: None,
             modifiers: StatementModifiers::new(),
             table_name: String::from(""),
@@ -2787,7 +2812,7 @@ impl CassandraParser {
 
     /// parse an `IF` condition list
     fn parse_if_condition_list(node: &Node, source: &str) -> Option<Vec<RelationElement>> {
-        let mut result:Vec<RelationElement> = vec![];
+        let mut result: Vec<RelationElement> = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
         while process {
@@ -2828,29 +2853,29 @@ impl CassandraParser {
     }
 
     /// parse an insert statement.
-    pub fn parse_insert_statement(node: &Node, source: &str) -> InsertStatementData {
+    pub fn parse_insert_statement(node: &Node, source: &str) -> Insert {
         let mut cursor = node.walk();
-        let mut if_not_exists =false;
+        let mut if_not_exists = false;
         cursor.goto_first_child();
-        let mut data = InsertStatementData {
+        let mut data = Insert {
             begin_batch: if cursor.node().kind().eq("begin_batch") {
                 let result = Some(CassandraParser::parse_begin_batch(&cursor.node(), source));
                 cursor.goto_next_sibling();
                 result
-            } else { None },
+            } else {
+                None
+            },
             modifiers: StatementModifiers::new(),
             table_name: {
                 // consume INSERT
                 cursor.goto_next_sibling();
                 // consume INTO
                 cursor.goto_next_sibling();
-                let kind = cursor.node().kind();
                 CassandraParser::parse_table_name(&cursor.node(), source)
             },
             columns: {
                 cursor.goto_next_sibling();
                 cursor.goto_first_child();
-                let kind = cursor.node().kind();
                 // consume the '(' at the beginning
                 cursor.goto_next_sibling();
                 let result = CassandraParser::parse_column_list(&cursor.node(), source);
@@ -2858,11 +2883,8 @@ impl CassandraParser {
                 result
             },
             values: {
-                let kind = cursor.node().kind();
                 cursor.goto_next_sibling();
-                let kind = cursor.node().kind();
                 cursor.goto_first_child();
-                let kind = cursor.node().kind();
                 let result = match cursor.node().kind() {
                     "VALUES" => {
                         cursor.goto_next_sibling();
@@ -2874,12 +2896,9 @@ impl CassandraParser {
                     }
                     "JSON" => {
                         cursor.goto_next_sibling();
-                        InsertValues::JSON(NodeFuncs::as_string(
-                            &cursor.node(),
-                            source,
-                        ))
+                        InsertValues::JSON(NodeFuncs::as_string(&cursor.node(), source))
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 cursor.goto_parent();
                 result
@@ -2897,15 +2916,17 @@ impl CassandraParser {
                     }
                     if cursor.node().kind().eq("using_ttl_timestamp") {
                         Some(CassandraParser::parse_ttl_timestamp(&cursor.node(), source))
-                    } else { None }
-                } else {None}
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             },
         };
         data.modifiers.not_exists = if_not_exists;
         data
     }
-
-
 
     /// parse a column list
     fn parse_column_list(node: &Node, source: &str) -> Vec<String> {
@@ -3034,17 +3055,15 @@ impl CassandraParser {
     /// parse an operand
     fn parse_operand(node: &Node, source: &str) -> Operand {
         match node.kind() {
-            "assignment_operand" |
-            "constant" => {
+            "assignment_operand" | "constant" => {
                 let txt = NodeFuncs::as_string(node, source);
                 if txt.to_uppercase().eq("NULL") {
                     Operand::NULL
                 } else {
                     Operand::CONST(txt)
                 }
-            },
-            "object_name" |
-            "column" => Operand::COLUMN(NodeFuncs::as_string(node, source)),
+            }
+            "object_name" | "column" => Operand::COLUMN(NodeFuncs::as_string(node, source)),
             "assignment_tuple" => {
                 Operand::TUPLE(CassandraParser::parse_assignment_tuple(node, source))
             }
@@ -3187,11 +3206,11 @@ impl CassandraParser {
     }
 
     /// parse a select statement
-    pub fn parse_select_statement(node: &Node, source: &str) -> SelectStatementData {
+    pub fn parse_select_statement(node: &Node, source: &str) -> Select {
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
-        let mut statement_data = SelectStatementData {
+        let mut statement_data = Select {
             modifiers: StatementModifiers::new(),
             elements: vec![],
             table_name: String::new(),
@@ -3354,13 +3373,13 @@ impl CassandraParser {
         let node = cursor.node();
         let kind = node.kind();
         match kind {
-            "<" => RelationOperator::LT,
-            "<=" => RelationOperator::LE,
-            "<>" => RelationOperator::NE,
-            "=" => RelationOperator::EQ,
-            ">=" => RelationOperator::GE,
-            ">" => RelationOperator::GT,
-            "IN" => RelationOperator::IN,
+            "<" => RelationOperator::LessThan,
+            "<=" => RelationOperator::LessThanOrEqual,
+            "<>" => RelationOperator::NotEqual,
+            "=" => RelationOperator::Equal,
+            ">=" => RelationOperator::GreaterThanOrEqual,
+            ">" => RelationOperator::GreaterThan,
+            "IN" => RelationOperator::In,
 
             _ => {
                 unreachable!("Unknown operator: {}", kind);
@@ -3467,10 +3486,10 @@ impl CassandraParser {
     }
 
     /// parse a drop trigger statement.
-    fn parse_drop_trigger(node: &Node, source: &str) -> DropTriggerData {
+    fn parse_drop_trigger(node: &Node, source: &str) -> DropTrigger {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        DropTriggerData {
+        DropTrigger {
             if_exists: CassandraParser::consume_2_keywords_and_check_exists(&mut cursor),
             name: { CassandraParser::parse_table_name(&cursor.node(), source) },
             table: {
@@ -3484,70 +3503,101 @@ impl CassandraParser {
 }
 
 impl Display for CassandraStatement {
-
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            CassandraStatement::AlterKeyspace(keyspace_data) => write!(f, "ALTER {}", keyspace_data),
+            CassandraStatement::AlterKeyspace(keyspace_data) => {
+                write!(f, "ALTER {}", keyspace_data)
+            }
             CassandraStatement::AlterMaterializedView(alter_data) => write!(f, "{}", alter_data),
-            CassandraStatement::AlterRole(role_data) => write!(f,"ALTER {}", role_data),
+            CassandraStatement::AlterRole(role_data) => write!(f, "ALTER {}", role_data),
             CassandraStatement::AlterTable(table_data) => {
-                write!(f,"ALTER TABLE {} {}", table_data.name, table_data.operation)
+                write!(
+                    f,
+                    "ALTER TABLE {} {}",
+                    table_data.name, table_data.operation
+                )
             }
             CassandraStatement::AlterType(alter_type_data) => write!(f, "{}", alter_type_data),
-            CassandraStatement::AlterUser(user_data) => write!(f,"ALTER {}", user_data),
-            CassandraStatement::ApplyBatch => write!(f,"APPLY BATCH"),
-            CassandraStatement::CreateAggregate(aggregate_data) => write!(f,"{}",aggregate_data),
-            CassandraStatement::CreateFunction(function_data) => write!(f,"{}",function_data),
-            CassandraStatement::CreateIndex(index_data) => write!(f,"{}",index_data),
+            CassandraStatement::AlterUser(user_data) => write!(f, "ALTER {}", user_data),
+            CassandraStatement::ApplyBatch => write!(f, "APPLY BATCH"),
+            CassandraStatement::CreateAggregate(aggregate_data) => write!(f, "{}", aggregate_data),
+            CassandraStatement::CreateFunction(function_data) => write!(f, "{}", function_data),
+            CassandraStatement::CreateIndex(index_data) => write!(f, "{}", index_data),
             CassandraStatement::CreateKeyspace(keyspace_data) => {
-                write!(f,"CREATE {}", keyspace_data)
+                write!(f, "CREATE {}", keyspace_data)
             }
-            CassandraStatement::CreateMaterializedView(view_data) => write!(f,"{}",view_data),
-            CassandraStatement::CreateRole(role_data) => write!(f,"CREATE {}", role_data),
-            CassandraStatement::CreateTable(table_data) => write!(f,"CREATE TABLE {}", table_data),
-            CassandraStatement::CreateTrigger(trigger_data) => write!(f,"{}",trigger_data),
-            CassandraStatement::CreateType(type_data) => write!(f,"{}",type_data),
-            CassandraStatement::CreateUser(user_data) => write!(f,"CREATE {}", user_data),
-            CassandraStatement::DeleteStatement(statement_data) => write!(f,"{}",statement_data),
-            CassandraStatement::DropAggregate(drop_data) => write!(f,"{}",drop_data.get_text("AGGREGATE")),
-            CassandraStatement::DropFunction(drop_data) => write!(f,"{}",drop_data.get_text("FUNCTION")),
-            CassandraStatement::DropIndex(drop_data) => write!(f,"{}",drop_data.get_text("INDEX")),
-            CassandraStatement::DropKeyspace(drop_data) => write!(f,"{}",drop_data.get_text("KEYSPACE")),
-            CassandraStatement::DropMaterializedView(drop_data) => write!(f,"{}",drop_data.get_text("MATERIALIZED VIEW")),
-            CassandraStatement::DropRole(drop_data) => write!(f,"{}",drop_data.get_text("ROLE")),
-            CassandraStatement::DropTable(drop_data) => write!(f,"{}",drop_data.get_text("TABLE")),
-            CassandraStatement::DropTrigger(drop_trigger_data) => write!(f,"{}",drop_trigger_data),
-            CassandraStatement::DropType(drop_data) => write!(f,"{}",drop_data.get_text("TYPE")),
-            CassandraStatement::DropUser(drop_data) => write!(f,"{}",drop_data.get_text("USER")),
-            CassandraStatement::Grant(grant_data) => write!(f,"GRANT {} ON {} TO {}",
+            CassandraStatement::CreateMaterializedView(view_data) => write!(f, "{}", view_data),
+            CassandraStatement::CreateRole(role_data) => write!(f, "CREATE {}", role_data),
+            CassandraStatement::CreateTable(table_data) => write!(f, "CREATE TABLE {}", table_data),
+            CassandraStatement::CreateTrigger(trigger_data) => write!(f, "{}", trigger_data),
+            CassandraStatement::CreateType(type_data) => write!(f, "{}", type_data),
+            CassandraStatement::CreateUser(user_data) => write!(f, "CREATE {}", user_data),
+            CassandraStatement::DeleteStatement(statement_data) => write!(f, "{}", statement_data),
+            CassandraStatement::DropAggregate(drop_data) => {
+                write!(f, "{}", drop_data.get_text("AGGREGATE"))
+            }
+            CassandraStatement::DropFunction(drop_data) => {
+                write!(f, "{}", drop_data.get_text("FUNCTION"))
+            }
+            CassandraStatement::DropIndex(drop_data) => {
+                write!(f, "{}", drop_data.get_text("INDEX"))
+            }
+            CassandraStatement::DropKeyspace(drop_data) => {
+                write!(f, "{}", drop_data.get_text("KEYSPACE"))
+            }
+            CassandraStatement::DropMaterializedView(drop_data) => {
+                write!(f, "{}", drop_data.get_text("MATERIALIZED VIEW"))
+            }
+            CassandraStatement::DropRole(drop_data) => write!(f, "{}", drop_data.get_text("ROLE")),
+            CassandraStatement::DropTable(drop_data) => {
+                write!(f, "{}", drop_data.get_text("TABLE"))
+            }
+            CassandraStatement::DropTrigger(drop_trigger_data) => {
+                write!(f, "{}", drop_trigger_data)
+            }
+            CassandraStatement::DropType(drop_data) => write!(f, "{}", drop_data.get_text("TYPE")),
+            CassandraStatement::DropUser(drop_data) => write!(f, "{}", drop_data.get_text("USER")),
+            CassandraStatement::Grant(grant_data) => write!(
+                f,
+                "GRANT {} ON {} TO {}",
                 grant_data.privilege,
                 grant_data.resource.as_ref().unwrap(),
                 &grant_data.role.as_ref().unwrap()
             ),
-            CassandraStatement::InsertStatement(statement_data) => write!(f,"{}",statement_data),
-            CassandraStatement::ListPermissions(grant_data) =>
-                write!(f,"LIST {}{}{}", grant_data.privilege,
-                grant_data.resource.as_ref().map_or( "".to_string(), |x| format!( " ON {}",x)),
-                grant_data.role.as_ref().map_or( "".to_string(), |x| format!(" OF {}", x))),
-            CassandraStatement::ListRoles(data) => write!(f,"{}",data),
-            CassandraStatement::Revoke(grant_data) => write!(f,
+            CassandraStatement::Insert(statement_data) => write!(f, "{}", statement_data),
+            CassandraStatement::ListPermissions(grant_data) => write!(
+                f,
+                "LIST {}{}{}",
+                grant_data.privilege,
+                grant_data
+                    .resource
+                    .as_ref()
+                    .map_or("".to_string(), |x| format!(" ON {}", x)),
+                grant_data
+                    .role
+                    .as_ref()
+                    .map_or("".to_string(), |x| format!(" OF {}", x))
+            ),
+            CassandraStatement::ListRoles(data) => write!(f, "{}", data),
+            CassandraStatement::Revoke(grant_data) => write!(
+                f,
                 "REVOKE {} ON {} FROM {}",
                 grant_data.privilege,
                 grant_data.resource.as_ref().unwrap(),
                 grant_data.role.as_ref().unwrap()
             ),
-            CassandraStatement::SelectStatement(statement_data) => write!(f,"{}",statement_data),
-            CassandraStatement::Truncate(table) => write!(f,"TRUNCATE TABLE {}", table),
-            CassandraStatement::Update(statement_data) => write!(f,"{}",statement_data),
-            CassandraStatement::UseStatement(keyspace) => write!(f,"USE {}", keyspace),
-            CassandraStatement::UNKNOWN(query) => write!(f,"{}", query),
+            CassandraStatement::Select(statement_data) => write!(f, "{}", statement_data),
+            CassandraStatement::Truncate(table) => write!(f, "TRUNCATE TABLE {}", table),
+            CassandraStatement::Update(statement_data) => write!(f, "{}", statement_data),
+            CassandraStatement::Use(keyspace) => write!(f, "USE {}", keyspace),
+            CassandraStatement::UNKNOWN(query) => write!(f, "{}", query),
         }
     }
 }
 
 /// Data for the create function statement
 #[derive(PartialEq, Debug, Clone)]
-pub struct FunctionData {
+pub struct Function {
     /// if specified the 'OR REPLACE' clause will be added.
     or_replace: bool,
     /// if specified the 'NOT EXISTS' clause will be added.
@@ -3567,7 +3617,7 @@ pub struct FunctionData {
     code_block: String,
 }
 
-impl Display for FunctionData {
+impl Display for Function {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -3618,7 +3668,7 @@ impl Display for IndexColumnType {
 
 /// data to for the create index statement.
 #[derive(PartialEq, Debug, Clone)]
-pub struct IndexData {
+pub struct Index {
     /// only if not exists.
     if_not_exists: bool,
     /// optional name of the index.
@@ -3629,7 +3679,7 @@ pub struct IndexData {
     column: IndexColumnType,
 }
 
-impl Display for IndexData {
+impl Display for Index {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let name = if self.name.is_some() {
             format!("{} ", self.name.as_ref().unwrap().as_str())
@@ -3720,7 +3770,7 @@ impl Display for Resource {
 }
 
 #[derive(PartialEq, Debug, Clone)]
-pub struct AggregateData {
+pub struct Aggregate {
     or_replace: bool,
     not_exists: bool,
     name: String,
@@ -3731,7 +3781,7 @@ pub struct AggregateData {
     init_cond: InitCondition,
 }
 
-impl Display for AggregateData {
+impl Display for Aggregate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -4742,12 +4792,42 @@ mod tests {
 
     #[test]
     fn test_select_element_display() {
-        assert_eq!( "*", SelectElement::Star.to_string());
-        assert_eq!( "col.*", SelectElement::DotStar("col".to_string()).to_string());
-        assert_eq!( "col", SelectElement::Column(Named{ name: "col".to_string(), alias: None }).to_string());
-        assert_eq!( "func", SelectElement::Function(Named{ name: "func".to_string(), alias: None }).to_string());
-        assert_eq!( "col AS alias", SelectElement::Column(Named{ name: "col".to_string(), alias: Some("alias".to_string()) }).to_string());
-        assert_eq!( "func AS alias", SelectElement::Function(Named{ name: "func".to_string(), alias: Some("alias".to_string()) }).to_string());
+        assert_eq!("*", SelectElement::Star.to_string());
+        assert_eq!(
+            "col.*",
+            SelectElement::DotStar("col".to_string()).to_string()
+        );
+        assert_eq!(
+            "col",
+            SelectElement::Column(Named {
+                name: "col".to_string(),
+                alias: None
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "func",
+            SelectElement::Function(Named {
+                name: "func".to_string(),
+                alias: None
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "col AS alias",
+            SelectElement::Column(Named {
+                name: "col".to_string(),
+                alias: Some("alias".to_string())
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "func AS alias",
+            SelectElement::Function(Named {
+                name: "func".to_string(),
+                alias: Some("alias".to_string())
+            })
+            .to_string()
+        );
     }
-
 }

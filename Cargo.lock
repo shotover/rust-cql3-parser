@@ -18,6 +18,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fff2a6927b3bb87f9595d67196a70493f627687a71d87a0d692242c33f58c11"
 
 [[package]]
+name = "cql3_parser"
+version = "0.0.1"
+dependencies = [
+ "itertools",
+ "regex",
+ "tree-sitter",
+ "tree-sitter-cql",
+]
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -56,16 +66,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
-name = "rust_cql3_parser"
-version = "0.0.1"
-dependencies = [
- "itertools",
- "regex",
- "tree-sitter",
- "tree-sitter-cql",
-]
-
-[[package]]
 name = "tree-sitter"
 version = "0.20.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -78,7 +78,7 @@ dependencies = [
 [[package]]
 name = "tree-sitter-cql"
 version = "0.0.1"
-source = "git+https://github.com/Claude-at-Instaclustr/tree-sitter-cql#495dffa341b8342312abd895a2bc4b3d316db23a"
+source = "git+https://github.com/Claude-at-Instaclustr/tree-sitter-cql?branch=main#495dffa341b8342312abd895a2bc4b3d316db23a"
 dependencies = [
  "cc",
  "regex",
