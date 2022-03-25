@@ -125,8 +125,8 @@ impl Display for SelectElement {
 
 #[derive(PartialEq, Debug, Clone)]
 pub struct Named {
-    pub(crate) name: String,
-    pub(crate) alias: Option<String>,
+    pub name: String,
+    pub alias: Option<String>,
 }
 
 /// the name an optional alias for a named item.
