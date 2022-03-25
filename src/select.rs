@@ -12,7 +12,7 @@ pub struct Select {
     /// The table name.
     pub table_name: String,
     /// the list of elements to select.
-    pub elements: Vec<SelectElement>,
+    pub columns: Vec<SelectElement>,
     /// the where clause
     pub where_clause: Option<Vec<RelationElement>>,
     /// the optional ordering
@@ -26,7 +26,7 @@ pub struct Select {
 impl Select {
     /// return the column names selected
     pub fn select_names(&self) -> Vec<String> {
-        self.elements
+        self.columns
             .iter()
             .filter(|e| match e {
                 SelectElement::Star => false,
@@ -44,7 +44,7 @@ impl Select {
     /// return the aliased column names.  If the column is not aliased the
     /// base column name is returned.
     pub fn select_alias(&self) -> Vec<String> {
-        self.elements
+        self.columns
             .iter()
             .map(|e| match e {
                 SelectElement::Column(named) => {
@@ -78,7 +78,7 @@ impl Display for Select {
             "SELECT {}{}{} FROM {}{}{}{}{}",
             if self.distinct { "DISTINCT " } else { "" },
             if self.json { "JSON " } else { "" },
-            self.elements.iter().join(", "),
+            self.columns.iter().join(", "),
             self.table_name,
             self.where_clause
                 .as_ref()

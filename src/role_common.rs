@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 
 /// the data for the `create role` statement.
 #[derive(PartialEq, Debug, Clone)]
-pub struct CreateRole {
+pub struct RoleCommon {
     /// the name of the role
     pub name: String,
     /// if specified the password for the role
@@ -18,7 +18,7 @@ pub struct CreateRole {
     pub if_not_exists: bool,
 }
 
-impl Display for CreateRole {
+impl Display for RoleCommon {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut with = vec![];
 

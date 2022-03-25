@@ -14,7 +14,6 @@ use crate::create_functon::CreateFunction;
 use crate::create_index::{CreateIndex, IndexColumnType};
 use crate::create_keyspace::CreateKeyspace;
 use crate::create_materialized_view::CreateMaterializedView;
-use crate::create_role::CreateRole;
 use crate::create_table::CreateTable;
 use crate::create_trigger::CreateTrigger;
 use crate::create_type::CreateType;
@@ -23,6 +22,7 @@ use crate::delete::{Delete, IndexedColumn};
 use crate::drop_trigger::DropTrigger;
 use crate::insert::{Insert, InsertValues};
 use crate::list_role::ListRole;
+use crate::role_common::RoleCommon;
 use crate::select::{Named, Select, SelectElement};
 use crate::update::{AssignmentElement, AssignmentOperator, Update};
 use tree_sitter::{Node, Tree, TreeCursor};
@@ -886,11 +886,11 @@ impl CassandraParser {
     }
 
     /// parse the create role statement
-    pub fn parse_create_role(node: &Node, source: &str) -> CreateRole {
+    pub fn parse_create_role(node: &Node, source: &str) -> RoleCommon {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
-        let mut result = CreateRole {
+        let mut result = RoleCommon {
             name: NodeFuncs::as_string(&cursor.node(), source),
             password: None,
             superuser: None,
@@ -1661,7 +1661,7 @@ impl CassandraParser {
         let mut statement_data = Select {
             distinct: false,
             json: false,
-            elements: vec![],
+            columns: vec![],
             table_name: String::new(),
             where_clause: None,
             order: None,
@@ -1679,13 +1679,13 @@ impl CassandraParser {
                         match cursor.node().kind() {
                             "select_element" => {
                                 statement_data
-                                    .elements
+                                    .columns
                                     .push(CassandraParser::parse_select_element(
                                         &cursor.node(),
                                         source,
                                     ))
                             }
-                            "*" => statement_data.elements.push(SelectElement::Star),
+                            "*" => statement_data.columns.push(SelectElement::Star),
                             _ => {}
                         }
                         process = cursor.goto_next_sibling();

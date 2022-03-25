@@ -9,7 +9,6 @@ use crate::create_functon::CreateFunction;
 use crate::create_index::CreateIndex;
 use crate::create_keyspace::CreateKeyspace;
 use crate::create_materialized_view::CreateMaterializedView;
-use crate::create_role::CreateRole;
 use crate::create_table::CreateTable;
 use crate::create_trigger::CreateTrigger;
 use crate::create_type::CreateType;
@@ -18,6 +17,7 @@ use crate::delete::Delete;
 use crate::drop_trigger::DropTrigger;
 use crate::insert::Insert;
 use crate::list_role::ListRole;
+use crate::role_common::RoleCommon;
 use crate::select::Select;
 use crate::update::Update;
 use std::fmt::{Display, Formatter};
@@ -30,7 +30,7 @@ use tree_sitter::{Node, Tree};
 pub enum CassandraStatement {
     AlterKeyspace(CreateKeyspace),
     AlterMaterializedView(AlterMaterializedView),
-    AlterRole(CreateRole),
+    AlterRole(RoleCommon),
     AlterTable(AlterTable),
     AlterType(AlterType),
     AlterUser(CreateUser),
@@ -40,7 +40,7 @@ pub enum CassandraStatement {
     CreateIndex(CreateIndex),
     CreateKeyspace(CreateKeyspace),
     CreateMaterializedView(CreateMaterializedView),
-    CreateRole(CreateRole),
+    CreateRole(RoleCommon),
     CreateTable(CreateTable),
     CreateTrigger(CreateTrigger),
     CreateType(CreateType),
