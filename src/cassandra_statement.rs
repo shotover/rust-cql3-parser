@@ -1200,6 +1200,24 @@ mod tests {
     }
 
     #[test]
+    fn test_invalid_statement() {
+        let stmt = "This is an invalid statement";
+        let ast = CassandraAST::new(stmt.to_string());
+        assert!(ast.has_error() );
+        let stmt = &ast.statement;
+        assert!( match ast.statement {
+            CassandraStatement::Unknown(_) => true,
+            _ => false,
+        });
+        let stmt_str = stmt.to_string();
+        assert_eq!(stmt.to_string(), stmt_str);
+        assert_eq!( stmt.to_string(), match ast.statement {
+            CassandraStatement::Unknown(text) => text,
+            _ => "".to_string(),
+        });
+    }
+
+    #[test]
     fn test_select_element_display() {
         assert_eq!("*", SelectElement::Star.to_string());
         assert_eq!(
