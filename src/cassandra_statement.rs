@@ -186,51 +186,99 @@ impl CassandraStatement {
         }
     }
 
-    fn split_keyspace(name : &String, default : &String) -> String {
-        let x : Vec<&str> = name.split('.').collect();
-        if x.len() == 1 { default.clone() } else { x[0].to_string() }
+    fn split_keyspace(name: &str, default: &str) -> String {
+        let x: Vec<&str> = name.split('.').collect();
+        if x.len() == 1 {
+            default.to_string()
+        } else {
+            x[0].to_string()
+        }
     }
 
-    pub fn get_keyspace(&self, default : &String) -> String {
+    pub fn get_keyspace(&self, default: &str) -> String {
         match self {
             CassandraStatement::AlterKeyspace(named) => named.name.clone(),
-            CassandraStatement::AlterMaterializedView(named) => self.split_keyspace( &named.name, default),
-            CassandraStatement::AlterRole(_) => default.clone(),
-            CassandraStatement::AlterTable(named) => self.split_keyspace( &named.name, default),
-            CassandraStatement::AlterType(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::AlterUser(_) => default.clone(),
-            CassandraStatement::ApplyBatch => default.clone(),
-            CassandraStatement::CreateAggregate(named) =>self.split_keyspace( &named.name, default ),
-            CassandraStatement::CreateFunction(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::CreateIndex(named) => self.split_keyspace( &named.table, default ),
+            CassandraStatement::AlterMaterializedView(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::AlterRole(_) => default.to_string(),
+            CassandraStatement::AlterTable(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::AlterType(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::AlterUser(_) => default.to_string(),
+            CassandraStatement::ApplyBatch => default.to_string(),
+            CassandraStatement::CreateAggregate(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::CreateFunction(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::CreateIndex(named) => {
+                CassandraStatement::split_keyspace(&named.table, default)
+            }
             CassandraStatement::CreateKeyspace(named) => named.name.clone(),
-            CassandraStatement::CreateMaterializedView(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::CreateRole(_) => default.clone(),
-            CassandraStatement::CreateTable(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::CreateTrigger(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::CreateType(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::CreateUser(_) => default.clone(),
-            CassandraStatement::DeleteStatement(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::DropAggregate(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::DropFunction(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::DropIndex(named) => self.split_keyspace( &named.name, default ),
+            CassandraStatement::CreateMaterializedView(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::CreateRole(_) => default.to_string(),
+            CassandraStatement::CreateTable(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::CreateTrigger(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::CreateType(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::CreateUser(_) => default.to_string(),
+            CassandraStatement::DeleteStatement(named) => {
+                CassandraStatement::split_keyspace(&named.table_name, default)
+            }
+            CassandraStatement::DropAggregate(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::DropFunction(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::DropIndex(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
             CassandraStatement::DropKeyspace(named) => named.name.clone(),
-            CassandraStatement::DropMaterializedView(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::DropRole(_) => default.clone(),
-            CassandraStatement::DropTable(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::DropTrigger(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::DropType(named) => self.split_keyspace( &named.name, default ),
-            CassandraStatement::DropUser(_) => default.clone(),
-            CassandraStatement::Grant(_) => default.clone(),
-            CassandraStatement::Insert(named) => self.split_keyspace( &named.table_name, default ),
-            CassandraStatement::ListPermissions(_) => default.clone(),
-            CassandraStatement::ListRoles(_) => default.clone(),
-            CassandraStatement::Revoke(_) => default.clone(),
-            CassandraStatement::Select(named) => self.split_keyspace( &named.table_name, default ),
-            CassandraStatement::Truncate(named) => self.split_keyspace( &named, default ),
-            CassandraStatement::Update(named) => self.split_keyspace( &named.table_name, default ),
+            CassandraStatement::DropMaterializedView(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::DropRole(_) => default.to_string(),
+            CassandraStatement::DropTable(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::DropTrigger(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::DropType(named) => {
+                CassandraStatement::split_keyspace(&named.name, default)
+            }
+            CassandraStatement::DropUser(_) => default.to_string(),
+            CassandraStatement::Grant(_) => default.to_string(),
+            CassandraStatement::Insert(named) => {
+                CassandraStatement::split_keyspace(&named.table_name, default)
+            }
+            CassandraStatement::ListPermissions(_) => default.to_string(),
+            CassandraStatement::ListRoles(_) => default.to_string(),
+            CassandraStatement::Revoke(_) => default.to_string(),
+            CassandraStatement::Select(named) => {
+                CassandraStatement::split_keyspace(&named.table_name, default)
+            }
+            CassandraStatement::Truncate(named) => {
+                CassandraStatement::split_keyspace(named, default)
+            }
+            CassandraStatement::Update(named) => {
+                CassandraStatement::split_keyspace(&named.table_name, default)
+            }
             CassandraStatement::Use(named) => named.clone(),
-            CassandraStatement::Unknown(_) => default.clone(),
+            CassandraStatement::Unknown(_) => default.to_string(),
         }
     }
 }
@@ -1251,18 +1299,18 @@ mod tests {
     fn test_invalid_statement() {
         let stmt = "This is an invalid statement";
         let ast = CassandraAST::new(stmt.to_string());
-        assert!(ast.has_error() );
+        assert!(ast.has_error());
         let stmt = &ast.statement;
-        assert!( match ast.statement {
-            CassandraStatement::Unknown(_) => true,
-            _ => false,
-        });
+        matches!(ast.statement, CassandraStatement::Unknown(_));
         let stmt_str = stmt.to_string();
         assert_eq!(stmt.to_string(), stmt_str);
-        assert_eq!( stmt.to_string(), match ast.statement {
-            CassandraStatement::Unknown(text) => text,
-            _ => "".to_string(),
-        });
+        assert_eq!(
+            stmt.to_string(),
+            match ast.statement {
+                CassandraStatement::Unknown(text) => text,
+                _ => "".to_string(),
+            }
+        );
     }
 
     #[test]
