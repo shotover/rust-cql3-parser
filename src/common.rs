@@ -501,7 +501,7 @@ pub struct WhereClause {}
 impl WhereClause {
     /// return a map of column names to relation elements
     pub fn get_column_relation_element_map(
-        where_clause: Vec<RelationElement>,
+        where_clause: &[RelationElement],
     ) -> HashMap<String, Vec<RelationElement>> {
         let mut result: HashMap<String, Vec<RelationElement>> = HashMap::new();
 
