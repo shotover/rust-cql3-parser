@@ -1,4 +1,4 @@
-use crate::common::{Operand, OrderClause, RelationElement};
+use crate::common::{OrderClause, RelationElement};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -25,6 +25,7 @@ pub struct Select {
 
 impl Select {
     /// return the column names selected
+    /// does not return functions.
     pub fn select_names(&self) -> Vec<String> {
         self.columns
             .iter()
@@ -43,6 +44,7 @@ impl Select {
 
     /// return the aliased column names.  If the column is not aliased the
     /// base column name is returned.
+    /// does not return functions.
     pub fn select_alias(&self) -> Vec<String> {
         self.columns
             .iter()
@@ -54,20 +56,6 @@ impl Select {
             })
             .filter(|e| !e.as_str().eq(""))
             .collect()
-    }
-    /// return the column names from the where clause
-    pub fn where_columns(&self) -> Vec<String> {
-        match &self.where_clause {
-            Some(x) => x
-                .iter()
-                .map(|e| match &e.obj {
-                    Operand::Column(name) => name.clone(),
-                    _ => "".to_string(),
-                })
-                .filter(|e| !e.eq(&""))
-                .collect(),
-            None => vec![],
-        }
     }
 }
 

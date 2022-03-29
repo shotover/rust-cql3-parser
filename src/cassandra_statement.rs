@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn x() {
-        let qry = "CREATE MATERIALIZED VIEW view AS SELECT col1, col2 FROM tbl WHERE col3 IS NOT NULL PRIMARY KEY (col1)";
+        let qry = "SELECT func(*) FROM table";
         let ast = CassandraAST::new(qry.to_string());
         let stmt = ast.statement;
         let stmt_str = stmt.to_string();

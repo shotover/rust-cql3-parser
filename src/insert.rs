@@ -1,6 +1,7 @@
 use crate::begin_batch::BeginBatch;
 use crate::common::{Operand, TtlTimestamp};
 use itertools::Itertools;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 /// the data for insert statements.
@@ -20,6 +21,25 @@ pub struct Insert {
     pub if_not_exists: bool,
 }
 
+impl Insert {
+    /// return a map of column names to Operands.
+    pub fn get_value_map(&self) -> HashMap<String, &Operand> {
+        let mut result = HashMap::new();
+        match &self.values {
+            InsertValues::Values(operands) => {
+                // if there is a column mismatch we have a problem so
+                // return an empty list
+                if self.columns.len() == operands.len() {
+                    for (i, operand) in operands.iter().enumerate() {
+                        result.insert(self.columns[i].to_string(), operand);
+                    }
+                }
+            }
+            InsertValues::Json(_) => {}
+        }
+        result
+    }
+}
 impl Display for Insert {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(

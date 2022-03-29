@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 /// A column definition.
@@ -493,5 +494,39 @@ impl Display for Resource {
             Resource::Role(role) => write!(f, "ROLE {}", role),
             Resource::Table(table) => write!(f, "TABLE {}", table),
         }
+    }
+}
+
+pub struct WhereClause {}
+impl WhereClause {
+    /// return a map of column names to relation elements
+    pub fn get_column_relation_element_map(
+        where_clause: Vec<RelationElement>,
+    ) -> HashMap<String, Vec<RelationElement>> {
+        let mut result: HashMap<String, Vec<RelationElement>> = HashMap::new();
+
+        for relation_element in where_clause {
+            if let Operand::Column(key) = &relation_element.obj {
+                if result.contains_key(key) {
+                    result.get_mut(key).unwrap().push(relation_element.clone());
+                } else {
+                    result.insert(key.clone(), vec![relation_element.clone()]);
+                }
+            }
+        }
+
+        result
+    }
+
+    pub fn get_column_list(where_clause: Vec<RelationElement>) -> Vec<String> {
+        let mut result = vec![];
+        where_clause
+            .iter()
+            .filter_map(|relation_element| match &relation_element.obj {
+                Operand::Column(name) => Some(name),
+                _ => None,
+            })
+            .for_each(|s| result.push(s.clone()));
+        result
     }
 }
