@@ -321,7 +321,7 @@ impl CassandraStatement {
             CassandraStatement::Truncate(_) => "TRUNCATE",
             CassandraStatement::Update(_) => "UPDATE",
             CassandraStatement::Use(_) => "USE",
-            CassandraStatement::Unknown(_) => "(Unparsable statement)",
+            CassandraStatement::Unknown(_) => "UNRECOGNIZED CQL",
         }
     }
 }
