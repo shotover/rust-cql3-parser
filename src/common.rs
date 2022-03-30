@@ -1,3 +1,5 @@
+use bytes::Bytes;
+use hex;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -166,6 +168,103 @@ pub enum Operand {
     Null,
 }
 
+/// this is _NOT_ the same as `Operand::Const(string)`  This conversion encloses the value in
+/// single quotes.
+impl From<String> for Operand {
+    fn from(txt: String) -> Self {
+        Operand::Const(format!("'{}'", txt))
+    }
+}
+
+impl From<&Bytes> for Operand {
+    fn from(b: &Bytes) -> Self {
+        Operand::from_hex(&hex::encode(b))
+    }
+}
+
+impl From<&bool> for Operand {
+    fn from(b: &bool) -> Self {
+        Operand::Const(if *b {
+            "TRUE".to_string()
+        } else {
+            "FALSE".to_string()
+        })
+    }
+}
+
+impl From<&u128> for Operand {
+    fn from(i: &u128) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+impl From<&u64> for Operand {
+    fn from(i: &u64) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+impl From<&u32> for Operand {
+    fn from(i: &u32) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+
+impl From<&u16> for Operand {
+    fn from(i: &u16) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+
+impl From<&u8> for Operand {
+    fn from(i: &u8) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+impl From<&i128> for Operand {
+    fn from(i: &i128) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+
+impl From<&i64> for Operand {
+    fn from(i: &i64) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+impl From<&i32> for Operand {
+    fn from(i: &i32) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+
+impl From<&i16> for Operand {
+    fn from(i: &i16) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+
+impl From<&i8> for Operand {
+    fn from(i: &i8) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+
+impl From<&f64> for Operand {
+    fn from(i: &f64) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+impl From<&f32> for Operand {
+    fn from(i: &f32) -> Self {
+        Operand::Const(i.to_string())
+    }
+}
+
+impl Operand {
+    /// creates creates a properly formated Operand::Const for a hex string.
+    fn from_hex(hex_str: &str) -> Operand {
+        Operand::Const(format!("0X{}", hex_str))
+    }
+}
 impl Display for Operand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
