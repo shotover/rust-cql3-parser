@@ -288,7 +288,7 @@ impl CassandraStatement {
         }
     }
 
-    pub fn short_name(&self) -> &str {
+    pub fn short_name(&self) -> &'static str {
         match self {
             CassandraStatement::AlterKeyspace(_) => "ALTER KEYSPACE",
             CassandraStatement::AlterMaterializedView(_) => "ALTER MATERIALIZED VIEW",
@@ -1354,9 +1354,8 @@ mod tests {
     fn test_multiple_statements() {
         let stmt = "Select * from foo; Select * from bar;";
         let ast = CassandraAST::new(stmt);
-        assert!( !ast.has_error());
-        assert_eq!( 2, ast.statements.len() );
-
+        assert!(!ast.has_error());
+        assert_eq!(2, ast.statements.len());
     }
 
     #[test]
