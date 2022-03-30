@@ -3,6 +3,7 @@ use hex;
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::net::IpAddr;
 
 /// A column definition.
 /// This is used in many places, however the primary_key value should only be used in
@@ -259,12 +260,37 @@ impl From<&f32> for Operand {
     }
 }
 
+impl From<&BigInt> for Operand {
+    fn from(b: &BigInt) -> Self {
+        Operand::Const( b.to_string() )
+    }
+}
+
+impl From<&BigDecimal> for Operand {
+    fn from(b: &BigDecimal) -> Self {
+        Operand::Const( b.to_string() )
+    }
+}
+
+impl From<&IpAddr> for Operand {
+    fn from(addr: &IpAddr) -> Self {
+        Operand::from( addr.to_string().as_str())
+    }
+}
+
+impl From<&Uuid> for Operand {
+    fn from(uuid: &Uuid) -> Self {
+        Operand::from( uuid.to_string().as_str())
+    }
+}
+
 impl Operand {
     /// creates creates a properly formated Operand::Const for a hex string.
     fn from_hex(hex_str: &str) -> Operand {
         Operand::Const(format!("0X{}", hex_str))
     }
 }
+
 impl Display for Operand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
