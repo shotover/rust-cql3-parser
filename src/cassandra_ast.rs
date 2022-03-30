@@ -1964,7 +1964,7 @@ pub struct CassandraAST {
 
 impl CassandraAST {
     /// create an AST from the query string
-    pub fn new(cassandra_statement: String) -> CassandraAST {
+    pub fn new(cassandra_statement: &str) -> CassandraAST {
         let language = tree_sitter_cql::language();
         let mut parser = tree_sitter::Parser::new();
         if parser.set_language(language).is_err() {
@@ -1978,11 +1978,11 @@ impl CassandraAST {
         }
         parser.set_logger( Some( Box::new( log)) );
         */
-        let tree = parser.parse(&cassandra_statement, None).unwrap();
 
+        let tree = parser.parse(cassandra_statement, None).unwrap();
         CassandraAST {
-            statement: CassandraStatement::from_tree(&tree, &cassandra_statement),
-            text: cassandra_statement,
+            statement: CassandraStatement::from_tree(&tree, cassandra_statement),
+            text: cassandra_statement.to_string(),
             tree,
         }
     }

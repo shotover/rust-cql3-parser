@@ -384,7 +384,7 @@ mod tests {
 
     fn test_parsing(expected: &[&str], statements: &[&str]) {
         for i in 0..statements.len() {
-            let ast = CassandraAST::new(statements[i].to_string());
+            let ast = CassandraAST::new(statements[i]);
             assert!(
                 !ast.has_error(),
                 "AST has error\n{}\n{} ",
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn x() {
         let qry = "SELECT func(*) FROM table";
-        let ast = CassandraAST::new(qry.to_string());
+        let ast = CassandraAST::new(qry);
         let stmt = ast.statement;
         let stmt_str = stmt.to_string();
         assert_eq!(qry, stmt_str);
@@ -546,16 +546,16 @@ mod tests {
         )];
 
         for i in 0..stmts.len() {
-            let ast = CassandraAST::new(stmts.get(i).unwrap().to_string());
+            let ast = CassandraAST::new(stmts.get(i).unwrap());
             assert_eq!(*types.get(i).unwrap(), ast.statement);
         }
     }
 
     #[test]
     fn test_has_error() {
-        let ast = CassandraAST::new("SELECT foo from bar.baz where fu='something'".to_string());
+        let ast = CassandraAST::new("SELECT foo from bar.baz where fu='something'");
         assert!(!ast.has_error());
-        let ast = CassandraAST::new("Not a valid statement".to_string());
+        let ast = CassandraAST::new("Not a valid statement");
         assert!(ast.has_error());
     }
 
@@ -1298,7 +1298,7 @@ mod tests {
     #[test]
     fn test_invalid_statement() {
         let stmt = "This is an invalid statement";
-        let ast = CassandraAST::new(stmt.to_string());
+        let ast = CassandraAST::new(stmt);
         assert!(ast.has_error());
         let stmt = &ast.statement;
         matches!(ast.statement, CassandraStatement::Unknown(_));
