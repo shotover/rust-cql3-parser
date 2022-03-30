@@ -170,8 +170,8 @@ pub enum Operand {
 
 /// this is _NOT_ the same as `Operand::Const(string)`  This conversion encloses the value in
 /// single quotes.
-impl From<String> for Operand {
-    fn from(txt: String) -> Self {
+impl From<&str> for Operand {
+    fn from(txt: &str) -> Self {
         Operand::Const(format!("'{}'", txt))
     }
 }
