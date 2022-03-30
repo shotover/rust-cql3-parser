@@ -70,12 +70,18 @@ pub enum CassandraStatement {
 
 impl CassandraStatement {
     /// extract the cassandra statement from an AST tree.
-    pub fn from_tree(tree: &Tree, source: &str) -> CassandraStatement {
-        let mut node = tree.root_node();
-        if node.kind().eq("source_file") {
-            node = node.child(0).unwrap();
+    pub fn from_tree(tree: &Tree, source: &str) -> Vec<CassandraStatement> {
+        let mut result = vec![];
+        let mut cursor = tree.root_node().walk();
+        let mut process = cursor.goto_first_child();
+        while process {
+            result.push(CassandraStatement::from_node(&cursor.node(), source));
+            process = cursor.goto_next_sibling();
+            while process && cursor.node().kind().eq(";") {
+                process = cursor.goto_next_sibling();
+            }
         }
-        CassandraStatement::from_node(&node, source)
+        result
     }
 
     /// extract the cassandra statement from an AST node.
@@ -425,6 +431,7 @@ mod tests {
     use crate::cassandra_statement::CassandraStatement;
     use crate::select::{Named, SelectElement};
 
+    // only tests single results
     fn test_parsing(expected: &[&str], statements: &[&str]) {
         for i in 0..statements.len() {
             let ast = CassandraAST::new(statements[i]);
@@ -434,7 +441,7 @@ mod tests {
                 statements[i],
                 ast.tree.root_node().to_sexp()
             );
-            let stmt = ast.statement;
+            let stmt = &ast.statements[0];
             let stmt_str = stmt.to_string();
             assert_eq!(expected[i], stmt_str);
         }
@@ -576,22 +583,9 @@ mod tests {
     fn x() {
         let qry = "SELECT func(*) FROM table";
         let ast = CassandraAST::new(qry);
-        let stmt = ast.statement;
+        let stmt = &ast.statements[0];
         let stmt_str = stmt.to_string();
         assert_eq!(qry, stmt_str);
-    }
-
-    #[test]
-    fn test_get_statement_type() {
-        let stmts = ["Not a valid statement"];
-        let types = [CassandraStatement::Unknown(
-            "Not a valid statement".to_string(),
-        )];
-
-        for i in 0..stmts.len() {
-            let ast = CassandraAST::new(stmts.get(i).unwrap());
-            assert_eq!(*types.get(i).unwrap(), ast.statement);
-        }
     }
 
     #[test]
@@ -1343,17 +1337,26 @@ mod tests {
         let stmt = "This is an invalid statement";
         let ast = CassandraAST::new(stmt);
         assert!(ast.has_error());
-        let stmt = &ast.statement;
-        matches!(ast.statement, CassandraStatement::Unknown(_));
+        let stmt = &ast.statements[0];
+        matches!(stmt, CassandraStatement::Unknown(_));
         let stmt_str = stmt.to_string();
         assert_eq!(stmt.to_string(), stmt_str);
         assert_eq!(
             stmt.to_string(),
-            match ast.statement {
-                CassandraStatement::Unknown(text) => text,
+            match &ast.statements[0] {
+                CassandraStatement::Unknown(text) => text.to_string(),
                 _ => "".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn test_multiple_statements() {
+        let stmt = "Select * from foo; Select * from bar;";
+        let ast = CassandraAST::new(stmt);
+        assert!( !ast.has_error());
+        assert_eq!( 2, ast.statements.len() );
+
     }
 
     #[test]

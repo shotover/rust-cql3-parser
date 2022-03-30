@@ -1959,7 +1959,7 @@ pub struct CassandraAST {
     /// the tree-sitter tree
     pub(crate) tree: Tree,
     /// the statement type of the query
-    pub statement: CassandraStatement,
+    pub statements: Vec<CassandraStatement>,
 }
 
 impl CassandraAST {
@@ -1981,7 +1981,7 @@ impl CassandraAST {
 
         let tree = parser.parse(cassandra_statement, None).unwrap();
         CassandraAST {
-            statement: CassandraStatement::from_tree(&tree, cassandra_statement),
+            statements: CassandraStatement::from_tree(&tree, cassandra_statement),
             text: cassandra_statement.to_string(),
             tree,
         }
