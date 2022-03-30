@@ -1,9 +1,12 @@
+use bigdecimal::BigDecimal;
 use bytes::Bytes;
 use hex;
 use itertools::Itertools;
+use num::BigInt;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::net::IpAddr;
+use uuid::Uuid;
 
 /// A column definition.
 /// This is used in many places, however the primary_key value should only be used in
@@ -262,25 +265,25 @@ impl From<&f32> for Operand {
 
 impl From<&BigInt> for Operand {
     fn from(b: &BigInt) -> Self {
-        Operand::Const( b.to_string() )
+        Operand::Const(b.to_string())
     }
 }
 
 impl From<&BigDecimal> for Operand {
     fn from(b: &BigDecimal) -> Self {
-        Operand::Const( b.to_string() )
+        Operand::Const(b.to_string())
     }
 }
 
 impl From<&IpAddr> for Operand {
     fn from(addr: &IpAddr) -> Self {
-        Operand::from( addr.to_string().as_str())
+        Operand::from(addr.to_string().as_str())
     }
 }
 
 impl From<&Uuid> for Operand {
     fn from(uuid: &Uuid) -> Self {
-        Operand::from( uuid.to_string().as_str())
+        Operand::from(uuid.to_string().as_str())
     }
 }
 
