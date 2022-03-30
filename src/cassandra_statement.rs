@@ -281,6 +281,49 @@ impl CassandraStatement {
             CassandraStatement::Unknown(_) => default.to_string(),
         }
     }
+
+    pub fn short_name(&self) -> &str {
+        match self {
+            CassandraStatement::AlterKeyspace(_) => "ALTER KEYSPACE",
+            CassandraStatement::AlterMaterializedView(_) => "ALTER MATERIALIZED VIEW",
+            CassandraStatement::AlterRole(_) => "ALTER ROLE",
+            CassandraStatement::AlterTable(_) => "ALTER TABLE",
+            CassandraStatement::AlterType(_) => "ALTER TYPE",
+            CassandraStatement::AlterUser(_) => "ALTER USER",
+            CassandraStatement::ApplyBatch => "APPLY BATCH",
+            CassandraStatement::CreateAggregate(_) => "CREATE AGGREGATE",
+            CassandraStatement::CreateFunction(_) => "CREATE FUNCTION",
+            CassandraStatement::CreateIndex(_) => "CREATE INDEX",
+            CassandraStatement::CreateKeyspace(_) => "CREATE KEYSPACE",
+            CassandraStatement::CreateMaterializedView(_) => "CREATE MATERIALIZED VIEW",
+            CassandraStatement::CreateRole(_) => "CREATE ROLE",
+            CassandraStatement::CreateTable(_) => "CREATE TABLE",
+            CassandraStatement::CreateTrigger(_) => "CREATE TRIGGER",
+            CassandraStatement::CreateType(_) => "CREATE TYPE",
+            CassandraStatement::CreateUser(_) => "CREATE USER",
+            CassandraStatement::DeleteStatement(_) => "DELETE",
+            CassandraStatement::DropAggregate(_) => "DROP AGGREGATE",
+            CassandraStatement::DropFunction(_) => "DROP FUNCTION",
+            CassandraStatement::DropIndex(_) => "DROP INDEX",
+            CassandraStatement::DropKeyspace(_) => "DROP KEYSPACE",
+            CassandraStatement::DropMaterializedView(_) => "DROP MATERIALIZED VIEW",
+            CassandraStatement::DropRole(_) => "DROP ROLE",
+            CassandraStatement::DropTable(_) => "DROP TABLE",
+            CassandraStatement::DropTrigger(_) => "DROP TRIGGER",
+            CassandraStatement::DropType(_) => "DROP TYPE",
+            CassandraStatement::DropUser(_) => "DROP USER",
+            CassandraStatement::Grant(_) => "GRANT",
+            CassandraStatement::Insert(_) => "INSERT",
+            CassandraStatement::ListPermissions(_) => "LIST PERMISSIONS",
+            CassandraStatement::ListRoles(_) => "LIST ROLES",
+            CassandraStatement::Revoke(_) => "REVOKE",
+            CassandraStatement::Select(_) => "SELECT",
+            CassandraStatement::Truncate(_) => "TRUNCATE",
+            CassandraStatement::Update(_) => "UPDATE",
+            CassandraStatement::Use(_) => "USE",
+            CassandraStatement::Unknown(_) => "(Unparsable statement)",
+        }
+    }
 }
 
 impl Display for CassandraStatement {
