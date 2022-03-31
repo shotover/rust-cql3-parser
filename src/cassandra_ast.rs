@@ -1052,65 +1052,77 @@ impl CassandraParser {
         result
     }
 
-    /// parse the update statement.
-    pub fn parse_update(node: &Node, source: &str) -> Update {
-        let mut statement_data = Update {
-            begin_batch: None,
-            table_name: String::from(""),
-            using_ttl: None,
-            assignments: vec![],
-            where_clause: vec![],
-            if_clause: None,
-            if_exists: false,
-        };
+    fn parse_update_assignments(node: &Node, source: &str) -> Vec<AssignmentElement> {
+        let mut result = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
-
         while process {
-            match cursor.node().kind() {
-                "begin_batch" => {
-                    statement_data.begin_batch =
-                        Some(CassandraParser::parse_begin_batch(&cursor.node(), source))
-                }
-                "UPDATE" => {
-                    cursor.goto_next_sibling();
-                    statement_data.table_name =
-                        CassandraParser::parse_dotted_name(&mut cursor, source);
-                }
-                "using_ttl_timestamp" => {
-                    statement_data.using_ttl =
-                        Some(CassandraParser::parse_ttl_timestamp(&cursor.node(), source));
-                }
-                "assignment_element" => {
-                    statement_data
-                        .assignments
-                        .push(CassandraParser::parse_assignment_element(
-                            &cursor.node(),
-                            source,
-                        ));
-                }
-                "where_spec" => {
-                    statement_data.where_clause =
-                        CassandraParser::parse_where_spec(&cursor.node(), source);
-                }
-                "IF" => {
-                    // consume EXISTS
-                    cursor.goto_next_sibling();
-                    statement_data.if_exists = true;
-                }
-                "if_spec" => {
-                    cursor.goto_first_child();
-                    // consume IF
-                    cursor.goto_next_sibling();
-                    statement_data.if_clause =
-                        CassandraParser::parse_if_condition_list(&cursor.node(), source);
-                    cursor.goto_parent();
-                }
-                _ => {}
+            if cursor.node().kind().eq("assignment_element") {
+                result.push(CassandraParser::parse_assignment_element(
+                    &cursor.node(),
+                    source,
+                ));
             }
             process = cursor.goto_next_sibling();
         }
-        statement_data
+        result
+    }
+
+    fn check_begin_batch(cursor: &mut TreeCursor, source: &str) -> Option<BeginBatch> {
+        if cursor.node().kind().eq("begin_batch") {
+            let result = Some(CassandraParser::parse_begin_batch(&cursor.node(), source));
+            cursor.goto_next_sibling();
+            result
+        } else {
+            None
+        }
+    }
+    /// parse the update statement.
+    pub fn parse_update(node: &Node, source: &str) -> Update {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+
+        Update {
+            begin_batch: CassandraParser::check_begin_batch(&mut cursor, source),
+            table_name: {
+                // consume UPDATE
+                cursor.goto_next_sibling();
+                CassandraParser::parse_table_name(&cursor.node(), source)
+            },
+            using_ttl: {
+                cursor.goto_next_sibling();
+                if cursor.node().kind().eq("using_ttl_timestamp") {
+                    let result = Some(CassandraParser::parse_ttl_timestamp(&cursor.node(), source));
+                    cursor.goto_next_sibling();
+                    result
+                } else {
+                    None
+                }
+            },
+            assignments: { CassandraParser::parse_update_assignments(&cursor.node(), source) },
+            where_clause: {
+                cursor.goto_next_sibling();
+                CassandraParser::parse_where_spec(&cursor.node(), source)
+            },
+            if_exists: {
+                cursor.goto_next_sibling();
+                if cursor.node().kind().eq("IF") {
+                    // consume EXISTS
+                    cursor.goto_next_sibling();
+                    true
+                } else {
+                    false
+                }
+            },
+            if_clause: if cursor.node().kind().eq("if_spec") {
+                cursor.goto_first_child();
+                // consume IF
+                cursor.goto_next_sibling();
+                CassandraParser::parse_if_condition_list(&cursor.node(), source)
+            } else {
+                None
+            },
+        }
     }
 
     /// parse the privilege
@@ -1305,13 +1317,7 @@ impl CassandraParser {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         Insert {
-            begin_batch: if cursor.node().kind().eq("begin_batch") {
-                let result = Some(CassandraParser::parse_begin_batch(&cursor.node(), source));
-                cursor.goto_next_sibling();
-                result
-            } else {
-                None
-            },
+            begin_batch: CassandraParser::check_begin_batch(&mut cursor, source),
             table_name: {
                 // consume INSERT
                 cursor.goto_next_sibling();

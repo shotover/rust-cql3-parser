@@ -35,7 +35,7 @@ impl Display for Update {
             self.using_ttl
                 .as_ref()
                 .map_or("".to_string(), |x| x.to_string()),
-            self.assignments.iter().map(|a| a.to_string()).join(","),
+            self.assignments.iter().map(|a| a.to_string()).join(", "),
             self.where_clause.iter().join(" AND "),
             if self.if_clause.is_some() {
                 format!(
