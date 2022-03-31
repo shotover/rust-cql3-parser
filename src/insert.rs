@@ -1,7 +1,7 @@
 use crate::begin_batch::BeginBatch;
 use crate::common::{Operand, TtlTimestamp};
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 
 /// the data for insert statements.
@@ -22,9 +22,9 @@ pub struct Insert {
 }
 
 impl Insert {
-    /// return a map of column names to Operands.
-    pub fn get_value_map(&self) -> HashMap<String, &Operand> {
-        let mut result = HashMap::new();
+    /// return a sorted map of column names to Operands.
+    pub fn get_value_map(&self) -> BTreeMap<String, &Operand> {
+        let mut result = BTreeMap::new();
         match &self.values {
             InsertValues::Values(operands) => {
                 // if there is a column mismatch we have a problem so
