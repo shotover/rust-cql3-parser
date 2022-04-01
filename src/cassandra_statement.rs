@@ -45,7 +45,7 @@ pub enum CassandraStatement {
     CreateTrigger(CreateTrigger),
     CreateType(CreateType),
     CreateUser(CreateUser),
-    DeleteStatement(Delete),
+    Delete(Delete),
     DropAggregate(CommonDrop),
     DropFunction(CommonDrop),
     DropIndex(CommonDrop),
@@ -136,9 +136,9 @@ impl CassandraStatement {
             "create_user" => {
                 CassandraStatement::CreateUser(CassandraParser::parse_create_user(node, source))
             }
-            "delete_statement" => CassandraStatement::DeleteStatement(
-                CassandraParser::parse_delete_statement(node, source),
-            ),
+            "delete_statement" => {
+                CassandraStatement::Delete(CassandraParser::parse_delete_statement(node, source))
+            }
             "drop_aggregate" => CassandraStatement::DropAggregate(
                 CassandraParser::parse_standard_drop(node, source),
             ),
@@ -240,7 +240,7 @@ impl CassandraStatement {
                 CassandraStatement::split_keyspace(&named.name, default)
             }
             CassandraStatement::CreateUser(_) => default.to_string(),
-            CassandraStatement::DeleteStatement(named) => {
+            CassandraStatement::Delete(named) => {
                 CassandraStatement::split_keyspace(&named.table_name, default)
             }
             CassandraStatement::DropAggregate(named) => {
@@ -307,7 +307,7 @@ impl CassandraStatement {
             CassandraStatement::CreateTrigger(_) => "CREATE TRIGGER",
             CassandraStatement::CreateType(_) => "CREATE TYPE",
             CassandraStatement::CreateUser(_) => "CREATE USER",
-            CassandraStatement::DeleteStatement(_) => "DELETE",
+            CassandraStatement::Delete(_) => "DELETE",
             CassandraStatement::DropAggregate(_) => "DROP AGGREGATE",
             CassandraStatement::DropFunction(_) => "DROP FUNCTION",
             CassandraStatement::DropIndex(_) => "DROP INDEX",
@@ -362,7 +362,7 @@ impl Display for CassandraStatement {
             CassandraStatement::CreateTrigger(trigger_data) => write!(f, "{}", trigger_data),
             CassandraStatement::CreateType(type_data) => write!(f, "{}", type_data),
             CassandraStatement::CreateUser(user_data) => write!(f, "CREATE {}", user_data),
-            CassandraStatement::DeleteStatement(statement_data) => write!(f, "{}", statement_data),
+            CassandraStatement::Delete(statement_data) => write!(f, "{}", statement_data),
             CassandraStatement::DropAggregate(drop_data) => {
                 write!(f, "{}", drop_data.get_text("AGGREGATE"))
             }
