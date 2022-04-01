@@ -1913,7 +1913,7 @@ impl CassandraParser {
                 name: NodeFuncs::as_string(&type_, source),
                 alias,
             }),
-            _ => SelectElement::DotStar(NodeFuncs::as_string(&type_, source)),
+            _ => unreachable!(),
         }
     }
 

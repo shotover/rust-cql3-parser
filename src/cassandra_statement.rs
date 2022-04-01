@@ -1364,10 +1364,6 @@ mod tests {
     fn test_select_element_display() {
         assert_eq!("*", SelectElement::Star.to_string());
         assert_eq!(
-            "col.*",
-            SelectElement::DotStar("col".to_string()).to_string()
-        );
-        assert_eq!(
             "col",
             SelectElement::Column(Named {
                 name: "col".to_string(),

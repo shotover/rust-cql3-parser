@@ -31,7 +31,6 @@ impl Select {
             .iter()
             .filter(|e| match e {
                 SelectElement::Star => false,
-                SelectElement::DotStar(_) => false,
                 SelectElement::Column(_) => true,
                 SelectElement::Function(_) => false,
             })
@@ -93,8 +92,6 @@ impl Display for Select {
 pub enum SelectElement {
     /// All of the columns
     Star,
-    /// a name followed by a '.*' (e.g. `foo.*`)
-    DotStar(String),
     /// a named column.  May have an alias specified.
     Column(Named),
     /// a named column.  May have an alias specified.
@@ -105,7 +102,6 @@ impl Display for SelectElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             SelectElement::Star => write!(f, "*"),
-            SelectElement::DotStar(column) => write!(f, "{}.*", column),
             SelectElement::Column(named) | SelectElement::Function(named) => write!(f, "{}", named),
         }
     }
