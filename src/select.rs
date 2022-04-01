@@ -29,14 +29,12 @@ impl Select {
     pub fn select_names(&self) -> Vec<String> {
         self.columns
             .iter()
-            .filter(|e| match e {
-                SelectElement::Star => false,
-                SelectElement::Column(_) => true,
-                SelectElement::Function(_) => false,
-            })
-            .map(|e| match e {
-                SelectElement::Column(named) => named.to_string(),
-                _ => unreachable!(),
+            .filter_map(|e| {
+                if let SelectElement::Column(named) = e {
+                    Some(named.to_string())
+                } else {
+                    None
+                }
             })
             .collect()
     }
