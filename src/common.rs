@@ -168,6 +168,8 @@ pub enum Operand {
     Column(String),
     /// A function name
     Func(String),
+    /// A parameter.  The string will either be '?' or ':name'
+    Param(String),
     /// the `NULL` value.
     Null,
 }
@@ -297,7 +299,8 @@ impl Operand {
 impl Display for Operand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operand::Column(text) | Operand::Func(text) | Operand::Const(text) => {
+            Operand::Column(text) | Operand::Func(text) | Operand::Const(text) |
+            Operand::Param(text)=> {
                 write!(f, "{}", text)
             }
             Operand::Map(entries) => {

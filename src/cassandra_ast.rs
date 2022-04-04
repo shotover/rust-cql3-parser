@@ -1517,6 +1517,7 @@ impl CassandraParser {
                     Operand::Const(txt)
                 }
             }
+            "bind_marker"  => Operand::Param( NodeFuncs::as_string(node,source)),
             "object_name" | "column" => Operand::Column(NodeFuncs::as_string(node, source)),
             "assignment_tuple" => {
                 Operand::Tuple(CassandraParser::parse_assignment_tuple(node, source))
@@ -1529,7 +1530,7 @@ impl CassandraParser {
             "function_args" => Operand::Tuple(CassandraParser::parse_function_args(node, source)),
             "function_call" => Operand::Func(NodeFuncs::as_string(node, source)),
             _ => {
-                unreachable!()
+                unreachable!( node.kind() )
             }
         }
     }

@@ -459,7 +459,6 @@ mod tests {
             "SELECT column FROM table WHERE col = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2;",
             "SELECT column FROM table WHERE col <> -5",
             "SELECT column FROM table WHERE col >= 3.5",
-            "SELECT column FROM table WHERE col = X'E0'",
             "SELECT column FROM table WHERE col = 0XFF",
             "SELECT column FROM table WHERE col = 0Xef",
             "SELECT column FROM table WHERE col = true",
@@ -472,7 +471,6 @@ mod tests {
             "SELECT column FROM table WHERE func(*) = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2;",
             "SELECT column FROM table WHERE func(*) <> -5",
             "SELECT column FROM table WHERE func(*) >= 3.5",
-            "SELECT column FROM table WHERE func(*) = X'e0'",
             "SELECT column FROM table WHERE func(*) = 0XFF",
             "SELECT column FROM table WHERE func(*) = 0Xff",
             "SELECT column FROM table WHERE func(*) = true",
@@ -488,6 +486,7 @@ mod tests {
             "SELECT column FROM table ORDER BY col1 DESC",
             "SELECT column FROM table LIMIT 5",
             "SELECT column FROM table ALLOW FILTERING",
+            "SELECT column from table where col=?"
         ];
         let expected = [
             "SELECT DISTINCT JSON * FROM table",
@@ -500,7 +499,6 @@ mod tests {
             "SELECT column FROM table WHERE col = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2",
             "SELECT column FROM table WHERE col <> -5",
             "SELECT column FROM table WHERE col >= 3.5",
-            "SELECT column FROM table WHERE col = X'E0'",
             "SELECT column FROM table WHERE col = 0XFF",
             "SELECT column FROM table WHERE col = 0Xef",
             "SELECT column FROM table WHERE col = true",
@@ -513,7 +511,6 @@ mod tests {
             "SELECT column FROM table WHERE func(*) = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2",
             "SELECT column FROM table WHERE func(*) <> -5",
             "SELECT column FROM table WHERE func(*) >= 3.5",
-            "SELECT column FROM table WHERE func(*) = X'e0'",
             "SELECT column FROM table WHERE func(*) = 0XFF",
             "SELECT column FROM table WHERE func(*) = 0Xff",
             "SELECT column FROM table WHERE func(*) = true",
@@ -529,6 +526,7 @@ mod tests {
             "SELECT column FROM table ORDER BY col1 DESC",
             "SELECT column FROM table LIMIT 5",
             "SELECT column FROM table ALLOW FILTERING",
+            "SELECT column FROM table WHERE col = ?"
         ];
         test_parsing(&expected, &stmts);
     }
@@ -536,24 +534,26 @@ mod tests {
     #[test]
     fn test_insert_statements() {
         let stmts = [
-        "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5);",
-        "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
-        "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
-        "INSERT INTO table (col1, col2) JSON $$ json code $$",
-        "INSERT INTO table (col1, col2) VALUES ({ 5 : 6 }, 'foo')",
-        "INSERT INTO table (col1, col2) VALUES ({ 5, 6 }, 'foo')",
-        "INSERT INTO table (col1, col2) VALUES ([ 5, 6 ], 'foo')",
-        "INSERT INTO table (col1, col2) VALUES (( 5, 6 ), 'foo')",
+            "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5);",
+            "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
+            "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
+            "INSERT INTO table (col1, col2) JSON $$ json code $$",
+            "INSERT INTO table (col1, col2) VALUES ({ 5 : 6 }, 'foo')",
+            "INSERT INTO table (col1, col2) VALUES ({ 5, 6 }, 'foo')",
+            "INSERT INTO table (col1, col2) VALUES ([ 5, 6 ], 'foo')",
+            "INSERT INTO table (col1, col2) VALUES (( 5, 6 ), 'foo')",
+            "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', ?) IF NOT EXISTS",
     ];
         let expected = [
-        "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5)",
-        "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
-        "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
-        "INSERT INTO table (col1, col2) JSON $$ json code $$",
-        "INSERT INTO table (col1, col2) VALUES ({5:6}, 'foo')",
-        "INSERT INTO table (col1, col2) VALUES ({5, 6}, 'foo')",
-        "INSERT INTO table (col1, col2) VALUES ([5, 6], 'foo')",
-        "INSERT INTO table (col1, col2) VALUES ((5, 6), 'foo')",
+            "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5)",
+            "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
+            "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
+            "INSERT INTO table (col1, col2) JSON $$ json code $$",
+            "INSERT INTO table (col1, col2) VALUES ({5:6}, 'foo')",
+            "INSERT INTO table (col1, col2) VALUES ({5, 6}, 'foo')",
+            "INSERT INTO table (col1, col2) VALUES ([5, 6], 'foo')",
+            "INSERT INTO table (col1, col2) VALUES ((5, 6), 'foo')",
+            "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', ?) IF NOT EXISTS",
     ];
         test_parsing(&expected, &stmts);
     }
@@ -561,27 +561,31 @@ mod tests {
     #[test]
     fn test_delete_statements() {
         let stmts = [
-        "BEGIN LOGGED BATCH USING TIMESTAMP 5 DELETE column [ 'hello' ] from table WHERE column2 = 'foo' IF EXISTS",
-        "BEGIN UNLOGGED BATCH DELETE column [ 6 ] from keyspace.table USING TIMESTAMP 5 WHERE column2='foo' IF column3 = 'stuff'",
-        "BEGIN BATCH DELETE column [ 'hello' ] from keyspace.table WHERE column2='foo'",
-        "DELETE from table WHERE column2='foo'",
-        "DELETE column, column3 from keyspace.table WHERE column2='foo'",
-        "DELETE column, column3 from keyspace.table WHERE column2='foo' IF column4 = 'bar'",
-    ];
+            "BEGIN LOGGED BATCH USING TIMESTAMP 5 DELETE column [ 'hello' ] from table WHERE column2 = 'foo' IF EXISTS",
+            "BEGIN UNLOGGED BATCH DELETE column [ 6 ] from keyspace.table USING TIMESTAMP 5 WHERE column2='foo' IF column3 = 'stuff'",
+            "BEGIN BATCH DELETE column [ 'hello' ] from keyspace.table WHERE column2='foo'",
+            "DELETE from table WHERE column2='foo'",
+            "DELETE column, column3 from keyspace.table WHERE column2='foo'",
+            "DELETE column, column3 from keyspace.table WHERE column2='foo' IF column4 = 'bar'",
+            "DELETE column, column3 from keyspace.table WHERE column2=?",
+            "DELETE column, column3 from keyspace.table WHERE column2='foo' IF column4 = ?",
+        ];
         let expected  = [
-        "BEGIN LOGGED BATCH USING TIMESTAMP 5 DELETE column['hello'] FROM table WHERE column2 = 'foo' IF EXISTS",
-        "BEGIN UNLOGGED BATCH DELETE column[6] FROM keyspace.table USING TIMESTAMP 5 WHERE column2 = 'foo' IF column3 = 'stuff'",
-        "BEGIN BATCH DELETE column['hello'] FROM keyspace.table WHERE column2 = 'foo'",
-        "DELETE FROM table WHERE column2 = 'foo'",
-        "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo'",
-        "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo' IF column4 = 'bar'",
-    ];
+            "BEGIN LOGGED BATCH USING TIMESTAMP 5 DELETE column['hello'] FROM table WHERE column2 = 'foo' IF EXISTS",
+            "BEGIN UNLOGGED BATCH DELETE column[6] FROM keyspace.table USING TIMESTAMP 5 WHERE column2 = 'foo' IF column3 = 'stuff'",
+            "BEGIN BATCH DELETE column['hello'] FROM keyspace.table WHERE column2 = 'foo'",
+            "DELETE FROM table WHERE column2 = 'foo'",
+            "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo'",
+            "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo' IF column4 = 'bar'",
+            "DELETE column, column3 FROM keyspace.table WHERE column2 = ?",
+            "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo' IF column4 = ?",
+        ];
         test_parsing(&expected, &stmts);
     }
 
     #[test]
     fn x() {
-        let qry = "BEGIN LOGGED BATCH USING TIMESTAMP 5 UPDATE keyspace.table SET col1 = 'foo' WHERE col2 = 5";
+        let qry = "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo' IF column4 = ?";
         let ast = CassandraAST::new(qry);
         let stmt = &ast.statements[0];
         let stmt_str = stmt.to_string();
