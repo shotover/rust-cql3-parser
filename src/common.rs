@@ -172,6 +172,8 @@ pub enum Operand {
     Param(String),
     /// the `NULL` value.
     Null,
+    /// an arbitrary collection of Operands
+    Collection(Vec<Operand>),
 }
 
 /// this is _NOT_ the same as `Operand::Const(string)`  This conversion encloses the value in
@@ -299,8 +301,10 @@ impl Operand {
 impl Display for Operand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operand::Column(text) | Operand::Func(text) | Operand::Const(text) |
-            Operand::Param(text)=> {
+            Operand::Column(text)
+            | Operand::Func(text)
+            | Operand::Const(text)
+            | Operand::Param(text) => {
                 write!(f, "{}", text)
             }
             Operand::Map(entries) => {
@@ -334,6 +338,7 @@ impl Display for Operand {
                 write!(f, "{}", result)
             }
             Operand::Null => write!(f, "NULL"),
+            Operand::Collection(operands) => write!(f, "{}", operands.iter().join(", ").as_str()),
         }
     }
 }
@@ -386,24 +391,19 @@ pub struct RelationElement {
     /// the relational operator
     pub oper: RelationOperator,
     /// the value, func, argument list, tuple list or tuple
-    pub value: Vec<Operand>,
+    pub value: Operand,
 }
 
+/*
 impl RelationElement {
     pub fn first_value(&self) -> &Operand {
         self.value.get(0).unwrap()
     }
 }
-
+*/
 impl Display for RelationElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} {} {}",
-            self.obj,
-            self.oper,
-            self.value.iter().join(", ")
-        )
+        write!(f, "{} {} {}", self.obj, self.oper, self.value)
     }
 }
 

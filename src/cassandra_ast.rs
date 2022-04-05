@@ -645,7 +645,7 @@ impl CassandraParser {
                 relations.push(RelationElement {
                     obj: Operand::Column(NodeFuncs::as_string(&cursor.node(), source)),
                     oper: RelationOperator::IsNot,
-                    value: vec![Operand::Null],
+                    value: Operand::Null,
                 });
                 cursor.goto_parent();
             }
@@ -1517,7 +1517,7 @@ impl CassandraParser {
                     Operand::Const(txt)
                 }
             }
-            "bind_marker"  => Operand::Param( NodeFuncs::as_string(node,source)),
+            "bind_marker" => Operand::Param(NodeFuncs::as_string(node, source)),
             "object_name" | "column" => Operand::Column(NodeFuncs::as_string(node, source)),
             "assignment_tuple" => {
                 Operand::Tuple(CassandraParser::parse_assignment_tuple(node, source))
@@ -1530,7 +1530,7 @@ impl CassandraParser {
             "function_args" => Operand::Tuple(CassandraParser::parse_function_args(node, source)),
             "function_call" => Operand::Func(NodeFuncs::as_string(node, source)),
             _ => {
-                unreachable!( node.kind() )
+                unreachable!(node.kind())
             }
         }
     }
@@ -1772,7 +1772,7 @@ impl CassandraParser {
                         cursor.goto_next_sibling();
                         // consume 'KEY'
                         cursor.goto_next_sibling();
-                        vec![Operand::Const(NodeFuncs::as_string(&cursor.node(), source))]
+                        Operand::Const(NodeFuncs::as_string(&cursor.node(), source))
                     },
                 }
             }
@@ -1786,7 +1786,7 @@ impl CassandraParser {
                         cursor.goto_next_sibling();
                         // consume 'CONTAINS'
                         cursor.goto_next_sibling();
-                        vec![Operand::Const(NodeFuncs::as_string(&cursor.node(), source))]
+                        Operand::Const(NodeFuncs::as_string(&cursor.node(), source))
                     },
                 }
             }
@@ -1815,10 +1815,14 @@ impl CassandraParser {
                             cursor.goto_next_sibling();
                             values.push(CassandraParser::parse_operand(&cursor.node(), source));
                         }
-                        if inline_tuple && values.len() > 1 {
-                            vec![Operand::Tuple(values)]
+                        if values.len() > 1 {
+                            if inline_tuple {
+                                Operand::Tuple(values)
+                            } else {
+                                Operand::Collection(values)
+                            }
                         } else {
-                            values
+                            values[0].clone()
                         }
                     },
                 }

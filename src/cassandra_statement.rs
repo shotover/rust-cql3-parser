@@ -486,7 +486,7 @@ mod tests {
             "SELECT column FROM table ORDER BY col1 DESC",
             "SELECT column FROM table LIMIT 5",
             "SELECT column FROM table ALLOW FILTERING",
-            "SELECT column from table where col=?"
+            "SELECT column from table where col=?",
         ];
         let expected = [
             "SELECT DISTINCT JSON * FROM table",
@@ -526,7 +526,7 @@ mod tests {
             "SELECT column FROM table ORDER BY col1 DESC",
             "SELECT column FROM table LIMIT 5",
             "SELECT column FROM table ALLOW FILTERING",
-            "SELECT column FROM table WHERE col = ?"
+            "SELECT column FROM table WHERE col = ?",
         ];
         test_parsing(&expected, &stmts);
     }
