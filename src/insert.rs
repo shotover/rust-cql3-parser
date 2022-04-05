@@ -23,7 +23,7 @@ pub struct Insert {
 
 impl Insert {
     /// return a sorted map of column names to Operands.
-    pub fn get_value_map(&self) -> BTreeMap<String, &Operand> {
+    pub fn get_value_map(&self) -> BTreeMap<&str, &Operand> {
         let mut result = BTreeMap::new();
         match &self.values {
             InsertValues::Values(operands) => {
@@ -31,7 +31,7 @@ impl Insert {
                 // return an empty list
                 if self.columns.len() == operands.len() {
                     for (i, operand) in operands.iter().enumerate() {
-                        result.insert(self.columns[i].to_string(), operand);
+                        result.insert(self.columns[i].as_str(), operand);
                     }
                 }
             }
