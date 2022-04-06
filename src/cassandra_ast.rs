@@ -1644,76 +1644,82 @@ impl CassandraParser {
         result
     }
 
+    pub fn parse_select_elements(node: &Node, source: &str) -> Vec<SelectElement> {
+        let mut cursor = node.walk();
+        let mut result = vec!();
+        let mut process = cursor.goto_first_child();
+        while process {
+            match cursor.node().kind() {
+                "select_element" => {
+                    result.push(CassandraParser::parse_select_element(
+                        &cursor.node(),
+                        source,
+                    ))
+                }
+                "*" => result.push(SelectElement::Star),
+                _ => {}
+            }
+            process = cursor.goto_next_sibling();
+        }
+        result
+    }
+
     /// parse a select statement
     pub fn parse_select(node: &Node, source: &str) -> Select {
         let mut cursor = node.walk();
         cursor.goto_first_child();
+        // consume SELECT
+        cursor.goto_next_sibling();
 
-        let mut statement_data = Select {
-            distinct: false,
-            json: false,
-            columns: vec![],
-            table_name: String::new(),
-            where_clause: None,
-            order: None,
-            limit: None,
-            filtering: false,
-        };
-        // we are on SELECT so we can just start
-        while cursor.goto_next_sibling() {
-            match cursor.node().kind() {
-                "DISTINCT" => statement_data.distinct = true,
-                "JSON" => statement_data.json = true,
-                "select_elements" => {
-                    let mut process = cursor.goto_first_child();
-                    while process {
-                        match cursor.node().kind() {
-                            "select_element" => {
-                                statement_data
-                                    .columns
-                                    .push(CassandraParser::parse_select_element(
-                                        &cursor.node(),
-                                        source,
-                                    ))
-                            }
-                            "*" => statement_data.columns.push(SelectElement::Star),
-                            _ => {}
-                        }
-                        process = cursor.goto_next_sibling();
-                    }
-                    cursor.goto_parent();
+        Select {
+            distinct: if cursor.node().kind().eq("DISTINCT") {
+                cursor.goto_next_sibling();
+                true
+            } else { false },
+            json: if cursor.node().kind().eq("JSON") {
+                cursor.goto_next_sibling();
+                true
+            } else { false },
+            columns: CassandraParser::parse_select_elements( &cursor.node(), source ),
+            table_name: {
+                cursor.goto_next_sibling();
+                CassandraParser::parse_from_spec(&cursor.node(), source)
+            },
+            where_clause: {
+                cursor.goto_next_sibling();
+                let mut result = vec!();
+                if cursor.node().kind().eq( "where_spec") {
+                    result = CassandraParser::parse_where_spec(&cursor.node(), source);
+                    cursor.goto_next_sibling();
                 }
-                "from_spec" => {
-                    statement_data.table_name =
-                        CassandraParser::parse_from_spec(&cursor.node(), source)
+                result
+            },
+            order: {
+                let mut result = None;
+                if cursor.node().kind().eq("order_spec") {
+                    result = CassandraParser::parse_order_spec(&cursor.node(), source);
+                    cursor.goto_next_sibling();
                 }
-                "where_spec" => {
-                    statement_data.where_clause =
-                        Some(CassandraParser::parse_where_spec(&cursor.node(), source))
-                }
-                "order_spec" => {
-                    statement_data.order = CassandraParser::parse_order_spec(&cursor.node(), source)
-                }
-                "limit_spec" => {
+                result
+            },
+            limit: {
+                let mut result = None;
+                if cursor.node().kind().eq("limit_spec") {
                     cursor.goto_first_child();
                     // consume LIMIT
                     cursor.goto_next_sibling();
-                    statement_data.limit = Some(
+                    result = Some(
                         NodeFuncs::as_string(&cursor.node(), source)
                             .parse::<i32>()
                             .unwrap(),
                     );
                     cursor.goto_parent();
-                }
-                "ALLOW" => {
-                    // consume 'FILTERING'
                     cursor.goto_next_sibling();
-                    statement_data.filtering = true
                 }
-                _ => {}
-            }
+                result
+            },
+            filtering: cursor.node().kind().eq("ALLOW")
         }
-        statement_data
     }
 
     /// parse the where clause

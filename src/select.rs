@@ -14,7 +14,7 @@ pub struct Select {
     /// the list of elements to select.
     pub columns: Vec<SelectElement>,
     /// the where clause
-    pub where_clause: Option<Vec<RelationElement>>,
+    pub where_clause: Vec<RelationElement>,
     /// the optional ordering
     pub order: Option<OrderClause>,
     /// the number of items to return
@@ -65,12 +65,11 @@ impl Display for Select {
             if self.json { "JSON " } else { "" },
             self.columns.iter().join(", "),
             self.table_name,
-            self.where_clause
-                .as_ref()
-                .map_or("".to_string(), |x| format!(
-                    " WHERE {}",
-                    x.iter().join(" AND ")
-                )),
+            if !self.where_clause.is_empty(){
+                format!(" WHERE {}", self.where_clause.iter().join( " AND "))
+            } else {
+                "".to_string()
+            },
             self.order
                 .as_ref()
                 .map_or("".to_string(), |x| format!(" ORDER BY {}", x)),
