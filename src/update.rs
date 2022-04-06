@@ -18,7 +18,7 @@ pub struct Update {
     /// the where clause
     pub where_clause: Vec<RelationElement>,
     /// if present a list of key,values for the `IF` clause
-    pub if_clause: Option<Vec<RelationElement>>,
+    pub if_clause: Vec<RelationElement>,
     /// if true and `if_clause` is NONE then  `IF EXISTS` is added to the statement
     pub if_exists: bool,
 }
@@ -37,10 +37,10 @@ impl Display for Update {
                 .map_or("".to_string(), |x| x.to_string()),
             self.assignments.iter().map(|a| a.to_string()).join(", "),
             self.where_clause.iter().join(" AND "),
-            if self.if_clause.is_some() {
+            if ! self.if_clause.is_empty() {
                 format!(
                     " IF {}",
-                    self.if_clause.as_ref().unwrap().iter().join(" AND ")
+                    self.if_clause.iter().join(" AND ")
                 )
             } else if self.if_exists {
                 " IF EXISTS".to_string()

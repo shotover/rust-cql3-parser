@@ -1120,7 +1120,7 @@ impl CassandraParser {
                 cursor.goto_next_sibling();
                 CassandraParser::parse_if_condition_list(&cursor.node(), source)
             } else {
-                None
+                vec!()
             },
         }
     }
@@ -1198,80 +1198,51 @@ impl CassandraParser {
         result
     }
 
-    /// parse a delete statement.
     pub fn parse_delete_statement(node: &Node, source: &str) -> Delete {
-        let mut statement_data = Delete {
-            begin_batch: None,
-            table_name: String::from(""),
-            columns: None,
-            timestamp: None,
-            where_clause: vec![],
-            if_clause: None,
-            if_exists: false,
-        };
-
         let mut cursor = node.walk();
-        let mut process = cursor.goto_first_child();
-
-        while process {
-            match cursor.node().kind() {
-                "begin_batch" => {
-                    statement_data.begin_batch =
-                        Some(CassandraParser::parse_begin_batch(&cursor.node(), source))
-                }
-                "delete_column_list" => {
-                    // goto delete_column_item
-                    let mut delete_columns = vec![];
-                    process = cursor.goto_first_child();
-                    while process {
-                        delete_columns.push(CassandraParser::parse_delete_column_item(
-                            &cursor.node(),
-                            source,
-                        ));
-                        // consume the column
-                        cursor.goto_next_sibling();
-                        process = cursor.goto_next_sibling();
-                        // consume the ',' if any
-                        cursor.goto_next_sibling();
-                    }
-                    // bring the cursor back to delete_column_list
-                    cursor.goto_parent();
-                    statement_data.columns = Some(delete_columns);
-                }
-                "from_spec" => {
-                    statement_data.table_name =
-                        CassandraParser::parse_from_spec(&cursor.node(), source);
-                }
-                "using_timestamp_spec" => {
-                    statement_data.timestamp =
-                        CassandraParser::parse_using_timestamp(&cursor.node(), source);
-                }
-                "where_spec" => {
-                    statement_data.where_clause =
-                        CassandraParser::parse_where_spec(&cursor.node(), source);
-                }
-                "IF" => {
-                    // consume EXISTS
+        cursor.goto_first_child();
+        Delete {
+            begin_batch: CassandraParser::check_begin_batch(&mut cursor, source),
+            columns: {
+                // consume DELETE
+                cursor.goto_next_sibling();
+                let mut result = vec!();
+                if cursor.node().kind().eq( "delete_column_list" ) {
+                    result = CassandraParser::parse_delete_column_list( &cursor.node(), source);
                     cursor.goto_next_sibling();
-                    statement_data.if_exists = true;
                 }
-                "if_spec" => {
+                result
+            },
+            table_name: {
+                CassandraParser::parse_from_spec(&cursor.node(), source)
+            },
+            timestamp: {
+                cursor.goto_next_sibling();
+                let mut result = None;
+                if cursor.node().kind().eq( "using_timestamp_spec") {
+                    result = CassandraParser::parse_using_timestamp(&cursor.node(), source);
+                    cursor.goto_next_sibling();
+                }
+                result
+            },
+            where_clause: CassandraParser::parse_where_spec( &cursor.node(), source ),
+            if_clause : {
+                cursor.goto_next_sibling();
+                if cursor.node().kind().eq( "if_spec") {
                     cursor.goto_first_child();
-                    // consume IF
+                    // consume the IF
                     cursor.goto_next_sibling();
-                    statement_data.if_clause =
-                        CassandraParser::parse_if_condition_list(&cursor.node(), source);
-                    cursor.goto_parent();
+                    CassandraParser::parse_if_condition_list(&cursor.node(), source)
+                } else {
+                    vec!()
                 }
-                _ => {}
-            }
-            process = cursor.goto_next_sibling();
+            },
+            if_exists : cursor.node().kind().eq( "IF" )
         }
-        statement_data
     }
 
     /// parse an `IF` condition list
-    fn parse_if_condition_list(node: &Node, source: &str) -> Option<Vec<RelationElement>> {
+    fn parse_if_condition_list(node: &Node, source: &str) -> Vec<RelationElement> {
         let mut result: Vec<RelationElement> = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
@@ -1284,7 +1255,20 @@ impl CassandraParser {
             // consume the 'AND' if it exists
             cursor.goto_next_sibling();
         }
-        Some(result)
+        result
+    }
+
+    fn parse_delete_column_list(node: &Node, source: &str) -> Vec<IndexedColumn> {
+        let mut cursor = node.walk();
+        let mut result = vec!();
+        let mut process = cursor.goto_first_child();
+        while process {
+            if cursor.node().kind().eq("delete_column_item") {
+                result.push( CassandraParser::parse_delete_column_item( &cursor.node(), source));
+            }
+            process = cursor.goto_next_sibling();
+        }
+        result
     }
 
     /// parse a delete column item
