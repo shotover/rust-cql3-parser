@@ -37,11 +37,8 @@ impl Display for Update {
                 .map_or("".to_string(), |x| x.to_string()),
             self.assignments.iter().map(|a| a.to_string()).join(", "),
             self.where_clause.iter().join(" AND "),
-            if ! self.if_clause.is_empty() {
-                format!(
-                    " IF {}",
-                    self.if_clause.iter().join(" AND ")
-                )
+            if !self.if_clause.is_empty() {
+                format!(" IF {}", self.if_clause.iter().join(" AND "))
             } else if self.if_exists {
                 " IF EXISTS".to_string()
             } else {

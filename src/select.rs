@@ -65,8 +65,8 @@ impl Display for Select {
             if self.json { "JSON " } else { "" },
             self.columns.iter().join(", "),
             self.table_name,
-            if !self.where_clause.is_empty(){
-                format!(" WHERE {}", self.where_clause.iter().join( " AND "))
+            if !self.where_clause.is_empty() {
+                format!(" WHERE {}", self.where_clause.iter().join(" AND "))
             } else {
                 "".to_string()
             },

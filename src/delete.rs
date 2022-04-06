@@ -32,9 +32,9 @@ impl Display for Delete {
                 .map_or("".to_string(), |x| x.to_string()),
             {
                 let mut str = "".to_string();
-                if ! self.columns.is_empty() {
+                if !self.columns.is_empty() {
                     str = self.columns.iter().join(", ");
-                    str.push(' ' );
+                    str.push(' ');
                 }
                 str
             },
@@ -43,11 +43,8 @@ impl Display for Delete {
                 .as_ref()
                 .map_or("".to_string(), |x| format!(" USING TIMESTAMP {}", x)),
             self.where_clause.iter().join(" AND "),
-            if ! self.if_clause.is_empty() {
-                format!(
-                    " IF {}",
-                    self.if_clause.iter().join(" AND ")
-                )
+            if !self.if_clause.is_empty() {
+                format!(" IF {}", self.if_clause.iter().join(" AND "))
             } else if self.if_exists {
                 " IF EXISTS".to_string()
             } else {

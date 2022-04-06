@@ -1120,7 +1120,7 @@ impl CassandraParser {
                 cursor.goto_next_sibling();
                 CassandraParser::parse_if_condition_list(&cursor.node(), source)
             } else {
-                vec!()
+                vec![]
             },
         }
     }
@@ -1206,38 +1206,36 @@ impl CassandraParser {
             columns: {
                 // consume DELETE
                 cursor.goto_next_sibling();
-                let mut result = vec!();
-                if cursor.node().kind().eq( "delete_column_list" ) {
-                    result = CassandraParser::parse_delete_column_list( &cursor.node(), source);
+                let mut result = vec![];
+                if cursor.node().kind().eq("delete_column_list") {
+                    result = CassandraParser::parse_delete_column_list(&cursor.node(), source);
                     cursor.goto_next_sibling();
                 }
                 result
             },
-            table_name: {
-                CassandraParser::parse_from_spec(&cursor.node(), source)
-            },
+            table_name: { CassandraParser::parse_from_spec(&cursor.node(), source) },
             timestamp: {
                 cursor.goto_next_sibling();
                 let mut result = None;
-                if cursor.node().kind().eq( "using_timestamp_spec") {
+                if cursor.node().kind().eq("using_timestamp_spec") {
                     result = CassandraParser::parse_using_timestamp(&cursor.node(), source);
                     cursor.goto_next_sibling();
                 }
                 result
             },
-            where_clause: CassandraParser::parse_where_spec( &cursor.node(), source ),
-            if_clause : {
+            where_clause: CassandraParser::parse_where_spec(&cursor.node(), source),
+            if_clause: {
                 cursor.goto_next_sibling();
-                if cursor.node().kind().eq( "if_spec") {
+                if cursor.node().kind().eq("if_spec") {
                     cursor.goto_first_child();
                     // consume the IF
                     cursor.goto_next_sibling();
                     CassandraParser::parse_if_condition_list(&cursor.node(), source)
                 } else {
-                    vec!()
+                    vec![]
                 }
             },
-            if_exists : cursor.node().kind().eq( "IF" )
+            if_exists: cursor.node().kind().eq("IF"),
         }
     }
 
@@ -1260,11 +1258,14 @@ impl CassandraParser {
 
     fn parse_delete_column_list(node: &Node, source: &str) -> Vec<IndexedColumn> {
         let mut cursor = node.walk();
-        let mut result = vec!();
+        let mut result = vec![];
         let mut process = cursor.goto_first_child();
         while process {
             if cursor.node().kind().eq("delete_column_item") {
-                result.push( CassandraParser::parse_delete_column_item( &cursor.node(), source));
+                result.push(CassandraParser::parse_delete_column_item(
+                    &cursor.node(),
+                    source,
+                ));
             }
             process = cursor.goto_next_sibling();
         }
@@ -1646,16 +1647,14 @@ impl CassandraParser {
 
     pub fn parse_select_elements(node: &Node, source: &str) -> Vec<SelectElement> {
         let mut cursor = node.walk();
-        let mut result = vec!();
+        let mut result = vec![];
         let mut process = cursor.goto_first_child();
         while process {
             match cursor.node().kind() {
-                "select_element" => {
-                    result.push(CassandraParser::parse_select_element(
-                        &cursor.node(),
-                        source,
-                    ))
-                }
+                "select_element" => result.push(CassandraParser::parse_select_element(
+                    &cursor.node(),
+                    source,
+                )),
                 "*" => result.push(SelectElement::Star),
                 _ => {}
             }
@@ -1675,20 +1674,24 @@ impl CassandraParser {
             distinct: if cursor.node().kind().eq("DISTINCT") {
                 cursor.goto_next_sibling();
                 true
-            } else { false },
+            } else {
+                false
+            },
             json: if cursor.node().kind().eq("JSON") {
                 cursor.goto_next_sibling();
                 true
-            } else { false },
-            columns: CassandraParser::parse_select_elements( &cursor.node(), source ),
+            } else {
+                false
+            },
+            columns: CassandraParser::parse_select_elements(&cursor.node(), source),
             table_name: {
                 cursor.goto_next_sibling();
                 CassandraParser::parse_from_spec(&cursor.node(), source)
             },
             where_clause: {
                 cursor.goto_next_sibling();
-                let mut result = vec!();
-                if cursor.node().kind().eq( "where_spec") {
+                let mut result = vec![];
+                if cursor.node().kind().eq("where_spec") {
                     result = CassandraParser::parse_where_spec(&cursor.node(), source);
                     cursor.goto_next_sibling();
                 }
@@ -1718,7 +1721,7 @@ impl CassandraParser {
                 }
                 result
             },
-            filtering: cursor.node().kind().eq("ALLOW")
+            filtering: cursor.node().kind().eq("ALLOW"),
         }
     }
 
