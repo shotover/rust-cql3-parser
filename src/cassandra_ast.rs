@@ -1963,7 +1963,7 @@ pub struct CassandraAST {
     /// the tree-sitter tree
     pub(crate) tree: Tree,
     /// the statement type of the query
-    pub statements: Vec<CassandraStatement>,
+    pub statements: Vec<(bool, CassandraStatement)>,
 }
 
 impl CassandraAST {

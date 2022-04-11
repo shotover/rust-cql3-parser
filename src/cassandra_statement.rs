@@ -70,12 +70,15 @@ pub enum CassandraStatement {
 
 impl CassandraStatement {
     /// extract the cassandra statement from an AST tree.
-    pub fn from_tree(tree: &Tree, source: &str) -> Vec<CassandraStatement> {
+    pub fn from_tree(tree: &Tree, source: &str) -> Vec<(bool, CassandraStatement)> {
         let mut result = vec![];
         let mut cursor = tree.root_node().walk();
         let mut process = cursor.goto_first_child();
         while process {
-            result.push(CassandraStatement::from_node(&cursor.node(), source));
+            result.push((
+                cursor.node().is_error(),
+                CassandraStatement::from_node(&cursor.node(), source),
+            ));
             process = cursor.goto_next_sibling();
             while process && cursor.node().kind().eq(";") {
                 process = cursor.goto_next_sibling();
@@ -442,7 +445,8 @@ mod tests {
                 ast.tree.root_node().to_sexp()
             );
             let stmt = &ast.statements[0];
-            let stmt_str = stmt.to_string();
+            assert!(stmt.0);
+            let stmt_str = stmt.1.to_string();
             assert_eq!(expected[i], stmt_str);
         }
     }
@@ -588,7 +592,7 @@ mod tests {
         let qry = "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo' IF column4 = ?";
         let ast = CassandraAST::new(qry);
         let stmt = &ast.statements[0];
-        let stmt_str = stmt.to_string();
+        let stmt_str = stmt.1.to_string();
         assert_eq!(qry, stmt_str);
     }
 
@@ -1343,17 +1347,19 @@ mod tests {
         let stmt = "This is an invalid statement";
         let ast = CassandraAST::new(stmt);
         assert!(ast.has_error());
-        let stmt = &ast.statements[0];
-        matches!(stmt, CassandraStatement::Unknown(_));
-        let stmt_str = stmt.to_string();
+        let result = &ast.statements[0];
+        matches!(result.1, CassandraStatement::Unknown(_));
+        let stmt_str = result.1.to_string();
         assert_eq!(stmt.to_string(), stmt_str);
         assert_eq!(
             stmt.to_string(),
-            match &ast.statements[0] {
-                CassandraStatement::Unknown(text) => text.to_string(),
+            match result {
+                (_, CassandraStatement::Unknown(text)) => text.to_string(),
                 _ => "".to_string(),
             }
         );
+        // error should be set
+        assert!(!result.0)
     }
 
     #[test]
