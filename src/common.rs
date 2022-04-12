@@ -152,7 +152,7 @@ impl DataTypeName {
 }
 
 /// An object that can be on either side of an `Operator`
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq, Ord, PartialOrd)]
 pub enum Operand {
     /// A constant
     Const(String),
@@ -384,7 +384,7 @@ impl Display for PrivilegeType {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq, Ord, PartialOrd)]
 pub struct RelationElement {
     /// the column, function or column list on the left side
     pub obj: Operand,
@@ -394,13 +394,6 @@ pub struct RelationElement {
     pub value: Operand,
 }
 
-/*
-impl RelationElement {
-    pub fn first_value(&self) -> &Operand {
-        self.value.get(0).unwrap()
-    }
-}
-*/
 impl Display for RelationElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {} {}", self.obj, self.oper, self.value)
@@ -429,7 +422,7 @@ impl RelationOperator {
 }
 
 /// A relation operator used in `WHERE` and `IF` clauses.
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq, PartialOrd, Ord)]
 pub enum RelationOperator {
     LessThan,
     LessThanOrEqual,
