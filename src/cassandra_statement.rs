@@ -70,6 +70,7 @@ pub enum CassandraStatement {
 
 impl CassandraStatement {
     /// extract the cassandra statement from an AST tree.
+    /// the boolean return value is `true` if there is a parsing error in the statement tree.
     pub fn from_tree(tree: &Tree, source: &str) -> Vec<(bool, CassandraStatement)> {
         let mut result = vec![];
         let mut cursor = tree.root_node().walk();
@@ -445,7 +446,7 @@ mod tests {
                 ast.tree.root_node().to_sexp()
             );
             let stmt = &ast.statements[0];
-            assert!(stmt.0);
+            assert!(!stmt.0);
             let stmt_str = stmt.1.to_string();
             assert_eq!(expected[i], stmt_str);
         }
@@ -1359,7 +1360,7 @@ mod tests {
             }
         );
         // error should be set
-        assert!(!result.0)
+        assert!(git sresult.0)
     }
 
     #[test]

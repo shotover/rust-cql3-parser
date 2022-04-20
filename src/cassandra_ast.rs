@@ -1515,7 +1515,7 @@ impl CassandraParser {
             "function_args" => Operand::Tuple(CassandraParser::parse_function_args(node, source)),
             "function_call" => Operand::Func(NodeFuncs::as_string(node, source)),
             _ => {
-                unreachable!(node.kind())
+                unreachable!("{}", node.kind())
             }
         }
     }
