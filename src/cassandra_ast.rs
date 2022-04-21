@@ -765,7 +765,7 @@ impl CassandraParser {
         let mut result = CreateIndex {
             if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
             name: None,
-            table: FQName::simple("".to_string()),
+            table: FQName::simple(""),
             column: IndexColumnType::Column("".to_string()),
         };
         let mut process = true;

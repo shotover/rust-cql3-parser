@@ -665,17 +665,17 @@ pub struct FQName {
 }
 
 impl FQName {
-    pub(crate) fn simple(name: String) -> FQName {
+    pub(crate) fn simple(name: &str) -> FQName {
         FQName {
             keyspace: None,
-            name,
+            name : name.into(),
         }
     }
 
-    pub fn new(keyspace: String, name: String) -> FQName {
+    pub fn new(keyspace: &str, name: &str) -> FQName {
         FQName {
-            keyspace: Some(keyspace),
-            name,
+            keyspace: Some(keyspace.into()),
+            name : name.into(),
         }
     }
 
