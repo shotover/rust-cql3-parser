@@ -698,3 +698,9 @@ impl Display for FQName {
         }
     }
 }
+
+impl From<&FQName>  for std::string::String {
+    fn from(fqname: &FQName) -> Self {
+        fqname.to_string()
+    }
+}
