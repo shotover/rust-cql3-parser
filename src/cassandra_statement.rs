@@ -1360,7 +1360,7 @@ mod tests {
             }
         );
         // error should be set
-        assert!(git sresult.0)
+        assert!(result.0)
     }
 
     #[test]
