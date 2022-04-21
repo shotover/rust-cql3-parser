@@ -1,12 +1,13 @@
+use crate::common::FQName;
 use std::fmt::{Display, Formatter};
 
 /// The data for a `drop trigger` command
 #[derive(PartialEq, Debug, Clone)]
 pub struct DropTrigger {
     /// the name of the trigger
-    pub name: String,
+    pub name: FQName,
     /// the table the trigger is associated with.
-    pub table: String,
+    pub table: FQName,
     /// only drop if the trigger exists
     pub if_exists: bool,
 }

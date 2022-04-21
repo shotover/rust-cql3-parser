@@ -1,4 +1,4 @@
-use crate::common::{OrderClause, RelationElement};
+use crate::common::{FQName, OrderClause, RelationElement};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -10,7 +10,7 @@ pub struct Select {
     /// if true JSON reslts
     pub json: bool,
     /// The table name.
-    pub table_name: String,
+    pub table_name: FQName,
     /// the list of elements to select.
     pub columns: Vec<SelectElement>,
     /// the where clause

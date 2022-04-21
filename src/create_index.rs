@@ -1,3 +1,4 @@
+use crate::common::FQName;
 use std::fmt::{Display, Formatter};
 
 /// data to for the create index statement.
@@ -8,7 +9,7 @@ pub struct CreateIndex {
     /// optional name of the index.
     pub name: Option<String>,
     /// the table the index is on.
-    pub table: String,
+    pub table: FQName,
     /// the index column type.
     pub column: IndexColumnType,
 }

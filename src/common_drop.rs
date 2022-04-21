@@ -1,8 +1,10 @@
+use crate::common::FQName;
+
 /// the data for many `Drop` commands
 #[derive(PartialEq, Debug, Clone)]
 pub struct CommonDrop {
     /// the name of the thing being dropped.
-    pub name: String,
+    pub name: FQName,
     /// only drop if th thing exists.
     pub if_exists: bool,
 }

@@ -1,4 +1,4 @@
-use crate::common::{ColumnDefinition, WithItem};
+use crate::common::{ColumnDefinition, FQName, WithItem};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 #[derive(PartialEq, Debug, Clone)]
 pub struct AlterTable {
     /// the name of the table.
-    pub name: String,
+    pub name: FQName,
     /// the table alteration operation.
     pub operation: AlterTableOperation,
 }

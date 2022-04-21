@@ -1,5 +1,5 @@
 use crate::alter_column::AlterColumnType;
-use crate::common::ColumnDefinition;
+use crate::common::{ColumnDefinition, FQName};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter};
 #[derive(PartialEq, Debug, Clone)]
 pub struct AlterType {
     /// the name of the type to alter
-    pub name: String,
+    pub name: FQName,
     /// the operation to perform on the type.
     pub operation: AlterTypeOperation,
 }
