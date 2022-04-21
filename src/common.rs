@@ -704,3 +704,9 @@ impl From<&FQName>  for std::string::String {
         fqname.to_string()
     }
 }
+
+impl From<FQName>  for std::string::String {
+    fn from(fqname: FQName) -> Self {
+        fqname.to_string()
+    }
+}
