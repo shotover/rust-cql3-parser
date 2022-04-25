@@ -665,7 +665,7 @@ pub struct FQName {
 }
 
 impl FQName {
-    pub(crate) fn simple(name: &str) -> FQName {
+    pub fn simple(name: &str) -> FQName {
         FQName {
             keyspace: None,
             name: name.into(),
