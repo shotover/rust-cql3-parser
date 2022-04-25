@@ -1,4 +1,4 @@
-use crate::common::DataType;
+use crate::common::{DataType, FQName};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 pub struct Aggregate {
     pub or_replace: bool,
     pub not_exists: bool,
-    pub name: String,
+    pub name: FQName,
     pub data_type: DataType,
     pub sfunc: String,
     pub stype: DataType,

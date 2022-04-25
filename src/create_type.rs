@@ -1,4 +1,4 @@
-use crate::common::ColumnDefinition;
+use crate::common::{ColumnDefinition, FQName};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -8,7 +8,7 @@ pub struct CreateType {
     /// only if the type does not exist.
     pub not_exists: bool,
     /// the name of the type
-    pub name: String,
+    pub name: FQName,
     /// the definition of the type.
     pub columns: Vec<ColumnDefinition>,
 }

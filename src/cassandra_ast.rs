@@ -6,8 +6,9 @@ use crate::alter_type::{AlterType, AlterTypeOperation};
 use crate::begin_batch::BeginBatch;
 use crate::cassandra_statement::CassandraStatement;
 use crate::common::{
-    ColumnDefinition, DataType, DataTypeName, Operand, OptionValue, OrderClause, PrimaryKey,
-    Privilege, PrivilegeType, RelationElement, RelationOperator, Resource, TtlTimestamp, WithItem,
+    ColumnDefinition, DataType, DataTypeName, FQName, Operand, OptionValue, OrderClause,
+    PrimaryKey, Privilege, PrivilegeType, RelationElement, RelationOperator, Resource,
+    TtlTimestamp, WithItem,
 };
 use crate::common_drop::CommonDrop;
 use crate::create_functon::CreateFunction;
@@ -43,7 +44,7 @@ impl NodeFuncs {
 /// The parser that walks the AST tree and produces a CassandraStatement.
 pub struct CassandraParser {}
 impl CassandraParser {
-    pub fn parse_truncate(node: &Node, source: &str) -> String {
+    pub fn parse_truncate(node: &Node, source: &str) -> FQName {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume until 'table_name'
@@ -764,7 +765,7 @@ impl CassandraParser {
         let mut result = CreateIndex {
             if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
             name: None,
-            table: "".to_string(),
+            table: FQName::simple(""),
             column: IndexColumnType::Column("".to_string()),
         };
         let mut process = true;
@@ -1429,7 +1430,7 @@ impl CassandraParser {
     }
 
     /// parse the `FROM` clause
-    fn parse_from_spec(node: &Node, source: &str) -> String {
+    fn parse_from_spec(node: &Node, source: &str) -> FQName {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'FROM'
@@ -1438,20 +1439,26 @@ impl CassandraParser {
     }
 
     /// parse a name that may have a keyspace specified.
-    fn parse_dotted_name(cursor: &mut TreeCursor, source: &str) -> String {
-        let mut result = NodeFuncs::as_string(&cursor.node(), source);
+    fn parse_dotted_name(cursor: &mut TreeCursor, source: &str) -> FQName {
+        let result = NodeFuncs::as_string(&cursor.node(), source);
         if cursor.goto_next_sibling() {
             // we have fully qualified name
-            result.push('.');
             // consume '.'
             cursor.goto_next_sibling();
-            result.push_str(NodeFuncs::as_string(&cursor.node(), source).as_str());
+            FQName {
+                keyspace: Some(result),
+                name: NodeFuncs::as_string(&cursor.node(), source),
+            }
+        } else {
+            FQName {
+                keyspace: None,
+                name: result,
+            }
         }
-        result
     }
 
     /// parse a table name
-    fn parse_table_name(node: &Node, source: &str) -> String {
+    fn parse_table_name(node: &Node, source: &str) -> FQName {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         CassandraParser::parse_dotted_name(&mut cursor, source)

@@ -1,5 +1,5 @@
 use crate::begin_batch::BeginBatch;
-use crate::common::{Operand, RelationElement, TtlTimestamp};
+use crate::common::{FQName, Operand, RelationElement, TtlTimestamp};
 use crate::delete::IndexedColumn;
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
@@ -10,7 +10,7 @@ pub struct Update {
     /// if present then statement starts with BEGIN BATCH
     pub begin_batch: Option<BeginBatch>,
     /// the table name to update
-    pub table_name: String,
+    pub table_name: FQName,
     /// if present then the TTL Timestamp for the update
     pub using_ttl: Option<TtlTimestamp>,
     /// the column assignments for the update.

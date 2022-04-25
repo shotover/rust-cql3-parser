@@ -1,5 +1,5 @@
 use crate::begin_batch::BeginBatch;
-use crate::common::{Operand, TtlTimestamp};
+use crate::common::{FQName, Operand, TtlTimestamp};
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
@@ -10,7 +10,7 @@ pub struct Insert {
     /// if set the statement starts with `BEGIN BATCH`
     pub begin_batch: Option<BeginBatch>,
     /// the table name
-    pub table_name: String,
+    pub table_name: FQName,
     /// an the list of of column names to insert into.
     pub columns: Vec<String>,
     /// the `VALUES` to insert

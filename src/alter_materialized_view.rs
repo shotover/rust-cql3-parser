@@ -1,4 +1,4 @@
-use crate::common::WithItem;
+use crate::common::{FQName, WithItem};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 #[derive(PartialEq, Debug, Clone)]
 pub struct AlterMaterializedView {
     /// the name of the materialzied view.
-    pub name: String,
+    pub name: FQName,
     /// the with options for the view.
     pub with_clause: Vec<WithItem>,
 }

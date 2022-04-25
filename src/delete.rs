@@ -1,5 +1,5 @@
 use crate::begin_batch::BeginBatch;
-use crate::common::RelationElement;
+use crate::common::{FQName, RelationElement};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -11,7 +11,7 @@ pub struct Delete {
     /// an optional list of columns to delete
     pub columns: Vec<IndexedColumn>,
     /// the table to delete from
-    pub table_name: String,
+    pub table_name: FQName,
     /// an optional timestamp to use for the deletion.
     pub timestamp: Option<u64>,
     /// the were clause for the delete.

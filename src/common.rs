@@ -592,13 +592,13 @@ pub enum Resource {
     /// all the roles
     AllRoles,
     /// the specific function.
-    Function(String),
+    Function(FQName),
     /// the specific keyspace
     Keyspace(String),
     /// the specified role.
     Role(String),
     /// the specified table.
-    Table(String),
+    Table(FQName),
 }
 
 impl Display for Resource {
@@ -655,5 +655,58 @@ impl WhereClause {
                 result.insert(s.clone());
             });
         result
+    }
+}
+
+#[derive(PartialEq, Debug, Clone)]
+pub struct FQName {
+    pub keyspace: Option<String>,
+    pub name: String,
+}
+
+impl FQName {
+    pub(crate) fn simple(name: &str) -> FQName {
+        FQName {
+            keyspace: None,
+            name : name.into(),
+        }
+    }
+
+    pub fn new(keyspace: &str, name: &str) -> FQName {
+        FQName {
+            keyspace: Some(keyspace.into()),
+            name : name.into(),
+        }
+    }
+
+    /// extracts the keyspace,  Return default if none
+    pub fn extract_keyspace<'a>(&'a self, default: &'a str) -> &'a str {
+        if let Some(keyspace) = &self.keyspace {
+            keyspace
+        } else {
+            default
+        }
+    }
+}
+
+impl Display for FQName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.keyspace.is_some() {
+            write!(f, "{}.{}", self.keyspace.as_ref().unwrap(), self.name)
+        } else {
+            write!(f, "{}", self.name)
+        }
+    }
+}
+
+impl From<&FQName>  for std::string::String {
+    fn from(fqname: &FQName) -> Self {
+        fqname.to_string()
+    }
+}
+
+impl From<FQName>  for std::string::String {
+    fn from(fqname: FQName) -> Self {
+        fqname.to_string()
     }
 }

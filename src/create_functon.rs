@@ -1,5 +1,5 @@
-use crate::common::ColumnDefinition;
 use crate::common::DataType;
+use crate::common::{ColumnDefinition, FQName};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -11,7 +11,7 @@ pub struct CreateFunction {
     /// if specified the 'NOT EXISTS' clause will be added.
     pub not_exists: bool,
     /// the name of the function.
-    pub name: String,
+    pub name: FQName,
     /// the parameters for the function.
     pub params: Vec<ColumnDefinition>,
     /// if set the function should return `NULL`` when called with `NULL`` otherwise

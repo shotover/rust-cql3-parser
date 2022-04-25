@@ -1,3 +1,4 @@
+use crate::common::FQName;
 use std::fmt::{Display, Formatter};
 
 /// data for the `CreateTrigger` statement.
@@ -6,7 +7,7 @@ pub struct CreateTrigger {
     /// only create if it does not exist.
     pub not_exists: bool,
     /// the name of the trigger.
-    pub name: String,
+    pub name: FQName,
     /// the class the implements the trigger.
     pub class: String,
 }

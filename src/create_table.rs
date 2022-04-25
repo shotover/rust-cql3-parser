@@ -1,4 +1,4 @@
-use crate::common::{ColumnDefinition, PrimaryKey, WithItem};
+use crate::common::{ColumnDefinition, FQName, PrimaryKey, WithItem};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -8,7 +8,7 @@ pub struct CreateTable {
     /// only create if the table does not exist
     pub if_not_exists: bool,
     /// the name of the table
-    pub name: String,
+    pub name: FQName,
     /// the column definitions.
     pub columns: Vec<ColumnDefinition>,
     /// the primary key if not specified in the column definitions.
