@@ -668,14 +668,14 @@ impl FQName {
     pub(crate) fn simple(name: &str) -> FQName {
         FQName {
             keyspace: None,
-            name : name.into(),
+            name: name.into(),
         }
     }
 
     pub fn new(keyspace: &str, name: &str) -> FQName {
         FQName {
             keyspace: Some(keyspace.into()),
-            name : name.into(),
+            name: name.into(),
         }
     }
 
@@ -699,13 +699,13 @@ impl Display for FQName {
     }
 }
 
-impl From<&FQName>  for std::string::String {
+impl From<&FQName> for std::string::String {
     fn from(fqname: &FQName) -> Self {
         fqname.to_string()
     }
 }
 
-impl From<FQName>  for std::string::String {
+impl From<FQName> for std::string::String {
     fn from(fqname: FQName) -> Self {
         fqname.to_string()
     }
