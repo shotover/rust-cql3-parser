@@ -658,7 +658,7 @@ impl WhereClause {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Hash, Eq)]
+#[derive(PartialEq, Debug, Clone, Hash, Eq, Deserialize)]
 pub struct FQName {
     pub keyspace: Option<String>,
     pub name: String,
