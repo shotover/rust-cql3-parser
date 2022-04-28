@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::net::IpAddr;
 use uuid::Uuid;
+use serde::Deserialize;
 
 /// A column definition.
 /// This is used in many places, however the primary_key value should only be used in
