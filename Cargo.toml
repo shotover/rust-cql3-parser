@@ -22,8 +22,7 @@ bigdecimal = {version ="0.3.0", features = ["serde"]}
 
 # Parsers
 tree-sitter = "0.20.5"
-tree-sitter-cql = { git = "https://github.com/Claude-at-Instaclustr/tree-sitter-cql", branch="main" }
-
+tree-sitter-cql = "0.0.1"
 
 [dev-dependencies]
 
