@@ -8,7 +8,7 @@ then constructs an editable thread safe representation of the query.
 
 ## Common usage
 
-```
+```rust
 use crate::cassandra_ast::CassandraAST;
 use crate::cassandra_statement::CassandraStatement;
 use crate::select::{Named, SelectElement};
