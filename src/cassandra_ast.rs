@@ -1430,7 +1430,7 @@ impl CassandraParser {
     }
 
     /// parse the `FROM` clause
-    fn parse_from_spec(node: &Node, source: &str) -> FQName {
+    pub fn parse_from_spec(node: &Node, source: &str) -> FQName {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'FROM'
@@ -1895,7 +1895,7 @@ impl CassandraParser {
     }
 
     /// parse a select element
-    fn parse_select_element(node: &Node, source: &str) -> SelectElement {
+    pub fn parse_select_element(node: &Node, source: &str) -> SelectElement {
         let mut cursor = node.walk();
         cursor.goto_first_child();
 
