@@ -16,8 +16,8 @@ pub struct CreateIndex {
 
 impl Display for CreateIndex {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let name = if self.name.is_some() {
-            format!("{} ", self.name.as_ref().unwrap().as_str())
+        let name = if let Some(name) = &self.name {
+            format!("{} ", name)
         } else {
             "".to_string()
         };

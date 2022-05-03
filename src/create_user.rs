@@ -19,9 +19,9 @@ impl Display for CreateUser {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut with = String::new();
 
-        if self.password.is_some() {
+        if let Some(password) = &self.password {
             with.push_str(" PASSWORD ");
-            with.push_str(self.password.as_ref().unwrap().as_str());
+            with.push_str(password);
         }
         if self.superuser {
             with.push_str(" SUPERUSER");
