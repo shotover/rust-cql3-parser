@@ -112,10 +112,10 @@ pub struct Named {
 
 /// the name an optional alias for a named item.
 impl Named {
-    pub fn alias_or_name(&self) -> String {
+    pub fn alias_or_name(&self) -> &str {
         match &self.alias {
-            None => self.name.clone(),
-            Some(alias) => alias.clone(),
+            None => &self.name,
+            Some(alias) => alias,
         }
     }
 }
