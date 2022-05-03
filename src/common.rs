@@ -562,12 +562,12 @@ impl Display for PrimaryKey {
             write!(f, "")
         } else if self.partition.len() == 1 {
             if self.clustering.is_empty() {
-                write!(f, "PRIMARY KEY ({})", self.partition.get(0).unwrap())
+                write!(f, "PRIMARY KEY ({})", self.partition[0])
             } else {
                 write!(
                     f,
                     "PRIMARY KEY ({}, {})",
-                    self.partition.get(0).unwrap(),
+                    self.partition[0],
                     self.clustering.join(", ")
                 )
             }
@@ -605,8 +605,8 @@ impl Display for Resource {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Resource::AllFunctions(str) => {
-                if str.is_some() {
-                    write!(f, "ALL FUNCTIONS IN KEYSPACE {}", str.as_ref().unwrap())
+                if let Some(str) = str {
+                    write!(f, "ALL FUNCTIONS IN KEYSPACE {}", str)
                 } else {
                     write!(f, "ALL FUNCTIONS")
                 }
@@ -631,8 +631,8 @@ impl WhereClause {
 
         for relation_element in where_clause {
             if let Operand::Column(key) = &relation_element.obj {
-                if result.contains_key(key) {
-                    result.get_mut(key).unwrap().push(relation_element.clone());
+                if let Some(value) = result.get_mut(key) {
+                    value.push(relation_element.clone());
                 } else {
                     result.insert(key.clone(), vec![relation_element.clone()]);
                 }
@@ -644,17 +644,13 @@ impl WhereClause {
 
     /// get the unordered set of column names for found in the where clause
     pub fn get_column_list(where_clause: Vec<RelationElement>) -> HashSet<String> {
-        let mut result = HashSet::new();
         where_clause
-            .iter()
-            .filter_map(|relation_element| match &relation_element.obj {
+            .into_iter()
+            .filter_map(|relation_element| match relation_element.obj {
                 Operand::Column(name) => Some(name),
                 _ => None,
             })
-            .for_each(|s| {
-                result.insert(s.clone());
-            });
-        result
+            .collect()
     }
 }
 
@@ -691,8 +687,8 @@ impl FQName {
 
 impl Display for FQName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.keyspace.is_some() {
-            write!(f, "{}.{}", self.keyspace.as_ref().unwrap(), self.name)
+        if let Some(keyspace) = &self.keyspace {
+            write!(f, "{}.{}", keyspace, self.name)
         } else {
             write!(f, "{}", self.name)
         }
