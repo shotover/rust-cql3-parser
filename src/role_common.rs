@@ -22,24 +22,17 @@ impl Display for RoleCommon {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut with = vec![];
 
-        if self.password.is_some() {
-            with.push(format!("PASSWORD = {}", self.password.as_ref().unwrap()));
+        if let Some(password) = &self.password {
+            with.push(format!("PASSWORD = {}", password));
         }
-        if self.superuser.is_some() {
+        if let Some(superuser) = self.superuser {
             with.push(format!(
                 "SUPERUSER = {}",
-                if self.superuser.unwrap() {
-                    "TRUE"
-                } else {
-                    "FALSE"
-                }
+                if superuser { "TRUE" } else { "FALSE" }
             ));
         }
-        if self.login.is_some() {
-            with.push(format!(
-                "LOGIN = {}",
-                if self.login.unwrap() { "TRUE" } else { "FALSE" }
-            ));
+        if let Some(login) = self.login {
+            with.push(format!("LOGIN = {}", if login { "TRUE" } else { "FALSE" }));
         }
         if !self.options.is_empty() {
             let mut txt = "OPTIONS = {".to_string();

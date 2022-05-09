@@ -40,13 +40,8 @@ impl Display for BeginBatch {
         } else {
             ""
         };
-        if self.timestamp.is_some() {
-            write!(
-                f,
-                "BEGIN {}BATCH USING TIMESTAMP {} ",
-                modifiers,
-                self.timestamp.unwrap()
-            )
+        if let Some(timestamp) = self.timestamp {
+            write!(f, "BEGIN {}BATCH USING TIMESTAMP {} ", modifiers, timestamp)
         } else {
             write!(f, "BEGIN {}BATCH ", modifiers)
         }

@@ -42,7 +42,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fff2a6927b3bb87f9595d67196a70493f627687a71d87a0d692242c33f58c11"
 
 [[package]]
-name = "cql3_parser"
+name = "cql3-parser"
 version = "0.1.1"
 dependencies = [
  "bigdecimal",
@@ -242,7 +242,8 @@ dependencies = [
 [[package]]
 name = "tree-sitter-cql"
 version = "0.0.1"
-source = "git+https://github.com/Claude-at-Instaclustr/tree-sitter-cql?branch=main#c1317a4b27d90b1cf45c0db689782da9798fbea6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fdcd73bf0389e82b70592060b7e25195d8d1728d7a0b76b549e92f7f5d124b4"
 dependencies = [
  "cc",
  "regex",
@@ -257,9 +258,9 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 
 [[package]]
 name = "uuid"
-version = "0.8.2"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+checksum = "8cfcd319456c4d6ea10087ed423473267e1a071f3bc0aa89f80d60997843c6f0"
 dependencies = [
  "serde",
 ]

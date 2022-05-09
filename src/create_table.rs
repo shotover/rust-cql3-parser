@@ -20,8 +20,8 @@ pub struct CreateTable {
 impl Display for CreateTable {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut v: Vec<String> = self.columns.iter().map(|x| x.to_string()).collect();
-        if self.key.is_some() {
-            v.push(self.key.as_ref().unwrap().to_string());
+        if let Some(key) = &self.key {
+            v.push(key.to_string());
         }
         write!(
             f,

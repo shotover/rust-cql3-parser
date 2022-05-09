@@ -16,7 +16,7 @@ pub struct CreateKeyspace {
 
 impl Display for CreateKeyspace {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.durable_writes.is_some() {
+        if let Some(durable_writes) = self.durable_writes {
             write!(
                 f,
                 "KEYSPACE {}{} WITH REPLICATION = {{{}}} AND DURABLE_WRITES = {}",
@@ -30,11 +30,7 @@ impl Display for CreateKeyspace {
                     .iter()
                     .map(|(x, y)| format!("{}:{}", x, y))
                     .join(", "),
-                if self.durable_writes.unwrap() {
-                    "TRUE"
-                } else {
-                    "FALSE"
-                }
+                if durable_writes { "TRUE" } else { "FALSE" }
             )
         } else {
             write!(

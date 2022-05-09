@@ -12,9 +12,9 @@ pub struct ListRole {
 impl Display for ListRole {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut s: String = "".to_string();
-        if self.of.is_some() {
+        if let Some(of) = &self.of {
             s = " OF ".to_string();
-            s.push_str(self.of.as_ref().unwrap().as_str());
+            s.push_str(of);
         }
         write!(
             f,
