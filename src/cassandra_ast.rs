@@ -26,7 +26,6 @@ use crate::list_role::ListRole;
 use crate::role_common::RoleCommon;
 use crate::select::{Named, Select, SelectElement};
 use crate::update::{AssignmentElement, AssignmentOperator, Update};
-use std::string::FromUtf8Error;
 use tree_sitter::{Node, Tree, TreeCursor};
 
 /// Functions for common manipulation of the nodes in the AST tree.
@@ -2007,11 +2006,5 @@ impl CassandraAST {
     /// retrieves the query value for the node (word or phrase enclosed by the node)
     pub fn node_text(&self, node: &Node) -> String {
         node.utf8_text(self.text.as_bytes()).unwrap().to_string()
-    }
-
-    /// extracts the text from the original parsed string starting at `start` and ending at `end`.
-    /// The `start` and `end` values are readily available in the statements tuple.
-    pub fn extract_text(&self, start: usize, end: usize) -> Result<String, FromUtf8Error> {
-        String::from_utf8(self.text.as_bytes()[start..end].to_vec())
     }
 }

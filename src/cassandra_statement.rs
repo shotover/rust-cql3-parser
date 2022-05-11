@@ -194,7 +194,12 @@ impl CassandraStatement {
             }
             "update" => CassandraStatement::Update(CassandraParser::parse_update(node, source)),
             "use" => CassandraStatement::Use(CassandraParser::parse_use(node, source)),
-            _ => CassandraStatement::Unknown(source.to_string()),
+            _ => CassandraStatement::Unknown(
+                match String::from_utf8(Vec::from(&source[node.start_byte()..node.end_byte()])) {
+                    Ok(str) => str,
+                    Err(_) => source.to_string(),
+                },
+            ),
         }
     }
 
@@ -1317,10 +1322,7 @@ mod tests {
     #[test]
     fn test_partial_invalid_statement() {
         let statement = "SELECT * FROM foo WHERE some invalid part";
-        let expected = [
-            "SELECT * FROM foo",
-            "SELECT * FROM foo WHERE some invalid part",
-        ];
+        let expected = ["SELECT * FROM foo", "WHERE some invalid part"];
         let ast = CassandraAST::new(statement);
         assert!(ast.has_error());
 
