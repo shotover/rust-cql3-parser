@@ -1296,22 +1296,48 @@ mod tests {
 
     #[test]
     fn test_invalid_statement() {
-        let stmt = "This is an invalid statement";
-        let ast = CassandraAST::new(stmt);
+        let statement = "This is an invalid statement";
+        let ast = CassandraAST::new(statement);
         assert!(ast.has_error());
-        let result = &ast.statements[0];
-        matches!(result.1, CassandraStatement::Unknown(_));
-        let stmt_str = result.1.to_string();
-        assert_eq!(stmt.to_string(), stmt_str);
+        let (result, parsed) = &ast.statements[0];
+        matches!(parsed, CassandraStatement::Unknown(_));
+        assert!(result);
+        assert_eq!(statement.to_string(), parsed.to_string());
         assert_eq!(
-            stmt.to_string(),
-            match result {
-                (_, CassandraStatement::Unknown(text)) => text.to_string(),
-                _ => "".to_string(),
+            statement,
+            match parsed {
+                CassandraStatement::Unknown(text) => text,
+                _ => "",
             }
         );
-        // error should be set
-        assert!(result.0)
+    }
+
+    #[test]
+    fn test_partial_invalid_statement() {
+        let statement = "SELECT * FROM foo WHERE some invalid part";
+        let expected = [
+            "SELECT * FROM foo",
+            "SELECT * FROM foo WHERE some invalid part",
+        ];
+        let ast = CassandraAST::new(statement);
+        assert!(ast.has_error());
+
+        let (result, parsed) = &ast.statements[0];
+        assert!(!result);
+        matches!(parsed, CassandraStatement::Select(_));
+        assert_eq!(expected[0].to_string(), parsed.to_string());
+
+        let (result, parsed) = &ast.statements[1];
+        assert!(result);
+        matches!(parsed, CassandraStatement::Unknown(_));
+        assert_eq!(expected[1].to_string(), parsed.to_string());
+        assert_eq!(
+            expected[1],
+            match parsed {
+                CassandraStatement::Unknown(text) => text,
+                _ => "",
+            }
+        );
     }
 
     #[test]

@@ -44,3 +44,11 @@ The above code changes `SELECT foo FROM myTable` to `Select foo, bar AS baz FROM
  * Many of the `Drop` statements have the same structure, it is in `common_drop`.
  * The statements dealing with Roles (e.g. `Create Role`) utilize the `role_common` module.
 
+## A Note on Errors
+
+When a statement is absolutely unparsable the parser will return a `CassandraStatement::Unknown`
+object.  For example `CassandraAST::new("This is an invalid statement");` yields 
+`CassandraStatement::Unknown("This is an invalid statement")`.  However, if a statement is 
+partially parsable multiple results are returned.  For example `CassandraAST::new("SELECT * FROM foo WHERE some invalid part");` yields
+`CassandraStatement::Select( select )` where the select is the result of parsing `"SELECT * FROM foo` followed  by 
+`CassandraStatement::Unknown("SELECT * FROM foo WHERE some invalid part")`.
