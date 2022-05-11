@@ -71,7 +71,7 @@ pub enum CassandraStatement {
 impl CassandraStatement {
     /// extract the cassandra statement from an AST tree.
     /// the boolean return value is `true` if there is a parsing error in the statement tree.
-    pub fn from_tree(tree: &Tree, source: &str) -> Vec<(bool, CassandraStatement)> {
+    pub fn from_tree(tree: &Tree, source: &str) -> Vec<(bool, CassandraStatement, usize, usize)> {
         let mut result = vec![];
         let mut cursor = tree.root_node().walk();
         let mut process = cursor.goto_first_child();
@@ -79,6 +79,8 @@ impl CassandraStatement {
             result.push((
                 cursor.node().is_error(),
                 CassandraStatement::from_node(&cursor.node(), source),
+                cursor.node().start_byte(),
+                cursor.node().end_byte()
             ));
             process = cursor.goto_next_sibling();
             while process && cursor.node().kind().eq(";") {
@@ -1299,7 +1301,7 @@ mod tests {
         let statement = "This is an invalid statement";
         let ast = CassandraAST::new(statement);
         assert!(ast.has_error());
-        let (result, parsed) = &ast.statements[0];
+        let (result, parsed, start, end) = &ast.statements[0];
         matches!(parsed, CassandraStatement::Unknown(_));
         assert!(result);
         assert_eq!(statement.to_string(), parsed.to_string());
@@ -1322,12 +1324,12 @@ mod tests {
         let ast = CassandraAST::new(statement);
         assert!(ast.has_error());
 
-        let (result, parsed) = &ast.statements[0];
+        let (result, parsed,start,end) = &ast.statements[0];
         assert!(!result);
         matches!(parsed, CassandraStatement::Select(_));
         assert_eq!(expected[0].to_string(), parsed.to_string());
 
-        let (result, parsed) = &ast.statements[1];
+        let (result, parsed,start, end) = &ast.statements[1];
         assert!(result);
         matches!(parsed, CassandraStatement::Unknown(_));
         assert_eq!(expected[1].to_string(), parsed.to_string());
@@ -1353,7 +1355,7 @@ mod tests {
         let stmt = "SELECT * FROM foo WHERE bar = '\u{1F44D}'";
         let ast = CassandraAST::new(stmt);
         assert!(!ast.has_error());
-        let (result, parsed) = &ast.statements[0];
+        let (result, parsed,start, end) = &ast.statements[0];
         assert!( !*result );
         assert_eq!( stmt.to_string(), parsed.to_string() );
     }
