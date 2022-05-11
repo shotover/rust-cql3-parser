@@ -1349,6 +1349,16 @@ mod tests {
     }
 
     #[test]
+    fn test_unicode_chars() {
+        let stmt = "SELECT * FROM foo WHERE bar = '\u{1F44D}'";
+        let ast = CassandraAST::new(stmt);
+        assert!(!ast.has_error());
+        let (result, parsed) = &ast.statements[0];
+        assert!( !*result );
+        assert_eq!( stmt.to_string(), parsed.to_string() );
+    }
+
+    #[test]
     fn test_select_element_display() {
         assert_eq!("*", SelectElement::Star.to_string());
         assert_eq!(
