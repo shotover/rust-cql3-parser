@@ -2007,4 +2007,10 @@ impl CassandraAST {
     pub fn node_text(&self, node: &Node) -> String {
         node.utf8_text(self.text.as_bytes()).unwrap().to_string()
     }
+
+    /// extracts the text from the original parsed string starting at `start` and ending at `end`.
+    /// The `start` and `end` values are readily available in the statements tuple.
+    pub fn extract_text(&self, start : usize, end : usize) -> String {
+       String::from_utf8(self.text.as_bytes()[start..stop].to_vec());
+    }
 }
