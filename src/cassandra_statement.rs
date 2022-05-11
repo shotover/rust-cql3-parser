@@ -80,7 +80,7 @@ impl CassandraStatement {
                 cursor.node().is_error(),
                 CassandraStatement::from_node(&cursor.node(), source),
                 cursor.node().start_byte(),
-                cursor.node().end_byte()
+                cursor.node().end_byte(),
             ));
             process = cursor.goto_next_sibling();
             while process && cursor.node().kind().eq(";") {
@@ -1301,7 +1301,7 @@ mod tests {
         let statement = "This is an invalid statement";
         let ast = CassandraAST::new(statement);
         assert!(ast.has_error());
-        let (result, parsed, start, end) = &ast.statements[0];
+        let (result, parsed, _start, _end) = &ast.statements[0];
         matches!(parsed, CassandraStatement::Unknown(_));
         assert!(result);
         assert_eq!(statement.to_string(), parsed.to_string());
@@ -1324,12 +1324,12 @@ mod tests {
         let ast = CassandraAST::new(statement);
         assert!(ast.has_error());
 
-        let (result, parsed,start,end) = &ast.statements[0];
+        let (result, parsed, _start, _end) = &ast.statements[0];
         assert!(!result);
         matches!(parsed, CassandraStatement::Select(_));
         assert_eq!(expected[0].to_string(), parsed.to_string());
 
-        let (result, parsed,start, end) = &ast.statements[1];
+        let (result, parsed, _start, _end) = &ast.statements[1];
         assert!(result);
         matches!(parsed, CassandraStatement::Unknown(_));
         assert_eq!(expected[1].to_string(), parsed.to_string());
@@ -1355,9 +1355,9 @@ mod tests {
         let stmt = "SELECT * FROM foo WHERE bar = '\u{1F44D}'";
         let ast = CassandraAST::new(stmt);
         assert!(!ast.has_error());
-        let (result, parsed,start, end) = &ast.statements[0];
-        assert!( !*result );
-        assert_eq!( stmt.to_string(), parsed.to_string() );
+        let (result, parsed, _start, _end) = &ast.statements[0];
+        assert!(!*result);
+        assert_eq!(stmt.to_string(), parsed.to_string());
     }
 
     #[test]
