@@ -1964,13 +1964,37 @@ impl CassandraParser {
     }
 }
 
+pub struct ParsedStatement {
+    /// true if the statement had an error in parsing.
+    pub has_error: bool,
+    /// the parsed statement.
+    pub statement: CassandraStatement,
+    /// the beginning byte of the text for the parsed statement within
+    /// the original statement.
+    start_byte: usize,
+    /// the ending byte of the text for the parsed statement within
+    /// the original statement.
+    end_byte: usize,
+}
+
+impl ParsedStatement {
+    pub fn new(node: Node, source: &str) -> ParsedStatement {
+        ParsedStatement {
+            has_error: node.is_error(),
+            statement: CassandraStatement::from_node(&node, source),
+            start_byte: node.start_byte(),
+            end_byte: node.end_byte(),
+        }
+    }
+}
+
 pub struct CassandraAST {
     /// The query string
     text: String,
     /// the tree-sitter tree
     pub(crate) tree: Tree,
     /// the statement type of the query
-    pub statements: Vec<(bool, CassandraStatement, usize, usize)>,
+    pub statements: Vec<ParsedStatement>,
 }
 
 impl CassandraAST {
@@ -2006,5 +2030,10 @@ impl CassandraAST {
     /// retrieves the query value for the node (word or phrase enclosed by the node)
     pub fn node_text(&self, node: &Node) -> String {
         node.utf8_text(self.text.as_bytes()).unwrap().to_string()
+    }
+
+    /// extracts the text for the statement from the original text.
+    pub fn extract_text(&self, statement: &ParsedStatement) -> &str {
+        &self.text.as_str()[statement.start_byte..statement.end_byte]
     }
 }

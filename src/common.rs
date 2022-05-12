@@ -294,7 +294,52 @@ impl From<&Uuid> for Operand {
 impl Operand {
     /// creates creates a properly formated Operand::Const for a hex string.
     fn from_hex(hex_str: &str) -> Operand {
-        Operand::Const(format!("0X{}", hex_str))
+        Operand::Const(format!("0x{}", hex_str))
+    }
+
+    /// unescapes any strings within an Operand::Const.
+    /// Specifically converts `''` to `'` and removes the leading and
+    /// trailing delimiters.  For all other Operands this is method returns
+    /// `self.to_string()`
+    pub fn unescape(&self) -> String {
+        match self {
+            Operand::Const(value) => {
+                if value.starts_with('\'') {
+                    let mut chars = value.chars();
+                    chars.next();
+                    chars.next_back();
+                    chars.as_str().replace("''", "'")
+                } else if value.starts_with("$$") {
+                    /* to convert to a VarChar type we have to strip the delimiters off the front and back
+                    of the string.  Soe remove one char (front and back) in the case of `'` and two in the case of `$$`
+                     */
+                    let mut chars = value.chars();
+                    chars.next();
+                    chars.next();
+                    chars.next_back();
+                    chars.next_back();
+                    chars.as_str().to_string()
+                } else {
+                    value.clone()
+                }
+            }
+            _ => self.to_string(),
+        }
+    }
+
+    /// creates an Operand::Const from an unquoted string.
+    /// if the string contains a "'" it will be quoted by the "$$" pattern.  if it contains "$$" and "'"
+    /// it will be quoted by the "'" pattern and all existing "'" will be replaced with "''"
+    pub fn escape(txt: &str) -> Operand {
+        if txt.contains('\'') {
+            if txt.contains("$$") {
+                Operand::Const(format!("'{}'", txt.replace('\'', "''")))
+            } else {
+                Operand::Const(format!("$${}$$", txt))
+            }
+        } else {
+            Operand::Const(txt.to_string())
+        }
     }
 }
 
@@ -704,5 +749,54 @@ impl From<&FQName> for std::string::String {
 impl From<FQName> for std::string::String {
     fn from(fqname: FQName) -> Self {
         fqname.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::common::Operand;
+
+    #[test]
+    pub fn test_operand_unescape() {
+        let tests = [
+            (
+                "'Women''s Tour of New Zealand'",
+                "Women's Tour of New Zealand",
+            ),
+            (
+                "$$Women's Tour of New Zealand$$",
+                "Women's Tour of New Zealand",
+            ),
+            (
+                "$$Women''s Tour of New Zealand$$",
+                "Women''s Tour of New Zealand",
+            ),
+            ("55", "55"),
+        ];
+        for (arg, expected) in tests {
+            assert_eq!(
+                expected,
+                Operand::Const(arg.to_string()).unescape().as_str()
+            );
+        }
+        assert_eq!(Operand::Null.to_string(), Operand::Null.unescape());
+    }
+
+    #[test]
+    pub fn test_operand_escape() {
+        let tests = [
+            (
+                "$$Women's Tour of New Zealand$$",
+                "Women's Tour of New Zealand",
+            ),
+            (
+                "'Women''s Tour of New Zealand makes big $$'",
+                "Women's Tour of New Zealand makes big $$",
+            ),
+            ("55", "55"),
+        ];
+        for (expected, arg) in tests {
+            assert_eq!(Operand::Const(expected.to_string()), Operand::escape(arg));
+        }
     }
 }
