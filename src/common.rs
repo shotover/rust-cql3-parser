@@ -302,7 +302,7 @@ impl Operand {
     /// Specifically converts `''` to `'` and removes the leading and
     /// trailing delimiters.  For all other strings this is method returns
     /// the argument.
-    pub fn unescape(value : &str) -> String {
+    pub fn unescape(value: &str) -> String {
         if value.starts_with('\'') {
             let mut chars = value.chars();
             chars.next();
@@ -770,12 +770,12 @@ mod tests {
             ("55", "55"),
         ];
         for (arg, expected) in tests {
-            assert_eq!(
-                expected,
-                Operand::unescape( arg).as_str()
-            );
+            assert_eq!(expected, Operand::unescape(arg).as_str());
         }
-        assert_eq!(Operand::Null.to_string(), Operand::unescape( Operand::Null.to_string().as_str() ));
+        assert_eq!(
+            Operand::Null.to_string(),
+            Operand::unescape(Operand::Null.to_string().as_str())
+        );
     }
 
     #[test]
