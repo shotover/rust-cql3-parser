@@ -298,33 +298,28 @@ impl Operand {
         Operand::Const(format!("0x{}", hex_str))
     }
 
-    /// unescapes any strings within an Operand::Const.
+    /// unescapes a CQL string
     /// Specifically converts `''` to `'` and removes the leading and
-    /// trailing delimiters.  For all other Operands this is method returns
-    /// `self.to_string()`
-    pub fn unescape(&self) -> String {
-        match self {
-            Operand::Const(value) => {
-                if value.starts_with('\'') {
-                    let mut chars = value.chars();
-                    chars.next();
-                    chars.next_back();
-                    chars.as_str().replace("''", "'")
-                } else if value.starts_with("$$") {
-                    /* to convert to a VarChar type we have to strip the delimiters off the front and back
-                    of the string.  Soe remove one char (front and back) in the case of `'` and two in the case of `$$`
-                     */
-                    let mut chars = value.chars();
-                    chars.next();
-                    chars.next();
-                    chars.next_back();
-                    chars.next_back();
-                    chars.as_str().to_string()
-                } else {
-                    value.clone()
-                }
-            }
-            _ => self.to_string(),
+    /// trailing delimiters.  For all other strings this is method returns
+    /// the argument.
+    pub fn unescape(value : &str) -> String {
+        if value.starts_with('\'') {
+            let mut chars = value.chars();
+            chars.next();
+            chars.next_back();
+            chars.as_str().replace("''", "'")
+        } else if value.starts_with("$$") {
+            /* to convert to a VarChar type we have to strip the delimiters off the front and back
+            of the string.  Soe remove one char (front and back) in the case of `'` and two in the case of `$$`
+             */
+            let mut chars = value.chars();
+            chars.next();
+            chars.next();
+            chars.next_back();
+            chars.next_back();
+            chars.as_str().to_string()
+        } else {
+            value.to_string()
         }
     }
 
@@ -777,10 +772,10 @@ mod tests {
         for (arg, expected) in tests {
             assert_eq!(
                 expected,
-                Operand::Const(arg.to_string()).unescape().as_str()
+                Operand::unescape( arg).as_str()
             );
         }
-        assert_eq!(Operand::Null.to_string(), Operand::Null.unescape());
+        assert_eq!(Operand::Null.to_string(), Operand::unescape( Operand::Null.to_string().as_str() ));
     }
 
     #[test]
