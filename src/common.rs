@@ -3,6 +3,7 @@ use bytes::Bytes;
 use hex;
 use itertools::Itertools;
 use num::BigInt;
+use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::net::IpAddr;
@@ -699,14 +700,14 @@ impl WhereClause {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Hash, Eq, Deserialize)]
 pub struct FQName {
     pub keyspace: Option<String>,
     pub name: String,
 }
 
 impl FQName {
-    pub(crate) fn simple(name: &str) -> FQName {
+    pub fn simple(name: &str) -> FQName {
         FQName {
             keyspace: None,
             name: name.into(),
