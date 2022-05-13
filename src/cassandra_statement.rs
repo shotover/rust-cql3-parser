@@ -189,15 +189,7 @@ impl CassandraStatement {
             }
             "update" => CassandraStatement::Update(CassandraParser::parse_update(node, source)),
             "use" => CassandraStatement::Use(CassandraParser::parse_use(node, source)),
-            _ => CassandraStatement::Unknown( source.to_string() ),
-/*                match String::from_utf8(Vec::from(&source[node.start_byte()..node.end_byte()])) {
-                    Ok(str) => str,
-                    Err(_) => source.to_string(),
-                },
-
-            ),
-
- */
+            _ => CassandraStatement::Unknown(source.to_string()),
         }
     }
 
