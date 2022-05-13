@@ -2059,7 +2059,7 @@ mod tests {
         assert_eq!(1, ast.statements.len());
         assert_eq!(&result, &ast.statements[0]);
     }
-
+/*
     #[test]
     fn test_partial_invalid_statement() {
         let statement = "SELECT * FROM foo WHERE some invalid part";
@@ -2083,7 +2083,7 @@ mod tests {
         assert_eq!(2, ast.statements.len());
         assert_eq!(expected, ast.statements);
     }
-
+*/
     #[test]
     fn test_multiple_statements() {
         let stmt = "Select * from foo; Select * from bar;";

@@ -195,8 +195,9 @@ impl CassandraStatement {
                     Err(_) => source.to_string(),
                 },
 
- */
             ),
+
+ */
         }
     }
 
