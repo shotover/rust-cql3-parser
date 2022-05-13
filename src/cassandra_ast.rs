@@ -1964,13 +1964,38 @@ impl CassandraParser {
     }
 }
 
+#[derive(PartialEq, Debug)]
+pub struct ParsedStatement {
+    /// true if the statement had an error in parsing.
+    pub has_error: bool,
+    /// the parsed statement.
+    pub statement: CassandraStatement,
+    /// the beginning byte of the text for the parsed statement within
+    /// the original statement.
+    start_byte: usize,
+    /// the ending byte of the text for the parsed statement within
+    /// the original statement.
+    end_byte: usize,
+}
+
+impl ParsedStatement {
+    pub fn new(node: Node, source: &str) -> ParsedStatement {
+        ParsedStatement {
+            has_error: node.is_error(),
+            statement: CassandraStatement::from_node(&node, source),
+            start_byte: node.start_byte(),
+            end_byte: node.end_byte(),
+        }
+    }
+}
+
 pub struct CassandraAST {
     /// The query string
     text: String,
     /// the tree-sitter tree
     pub(crate) tree: Tree,
     /// the statement type of the query
-    pub statements: Vec<(bool, CassandraStatement)>,
+    pub statements: Vec<ParsedStatement>,
 }
 
 impl CassandraAST {
@@ -2006,5 +2031,95 @@ impl CassandraAST {
     /// retrieves the query value for the node (word or phrase enclosed by the node)
     pub fn node_text(&self, node: &Node) -> String {
         node.utf8_text(self.text.as_bytes()).unwrap().to_string()
+    }
+
+    /// extracts the text for the statement from the original text.
+    pub fn extract_text(&self, statement: &ParsedStatement) -> &str {
+        &self.text.as_str()[statement.start_byte..statement.end_byte]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cassandra_ast::{CassandraAST, ParsedStatement};
+    use crate::cassandra_statement::CassandraStatement;
+
+    #[test]
+    fn test_invalid_statement() {
+        let statement = "This is an invalid statement";
+        let result = ParsedStatement {
+            has_error: true,
+            statement: CassandraStatement::Unknown(statement.to_string()),
+            start_byte: 0,
+            end_byte: 28,
+        };
+
+        let ast = CassandraAST::new(statement);
+        assert!(ast.has_error());
+        assert_eq!(1, ast.statements.len());
+        assert_eq!(&result, &ast.statements[0]);
+    }
+
+    #[test]
+    fn test_partial_invalid_statement() {
+        let statement = "SELECT * FROM foo WHERE some invalid part";
+        let select = &CassandraAST::new("SELECT * FROM foo").statements[0].statement;
+        let expected = vec![
+            ParsedStatement {
+                has_error: false,
+                statement: select.clone(),
+                start_byte: 0,
+                end_byte: 17,
+            },
+            ParsedStatement {
+                has_error: true,
+                statement: CassandraStatement::Unknown(statement.to_string()),
+                start_byte: 18,
+                end_byte: 41,
+            },
+        ];
+        let ast = CassandraAST::new(statement);
+        assert!(ast.has_error());
+        assert_eq!(2, ast.statements.len());
+        assert_eq!(expected, ast.statements);
+    }
+
+    #[test]
+    fn test_multiple_statements() {
+        let stmt = "Select * from foo; Select * from bar;";
+        let select1 = &CassandraAST::new("SELECT * FROM foo").statements[0].statement;
+        let select2 = &CassandraAST::new("SELECT * FROM bar").statements[0].statement;
+
+        let expected = vec![
+            ParsedStatement {
+                has_error: false,
+                statement: select1.clone(),
+                start_byte: 0,
+                end_byte: 17,
+            },
+            ParsedStatement {
+                has_error: false,
+                statement: select2.clone(),
+                start_byte: 19,
+                end_byte: 36,
+            },
+        ];
+
+        let ast = CassandraAST::new(stmt);
+        assert!(!ast.has_error());
+        assert_eq!(2, ast.statements.len());
+        assert_eq!(expected, ast.statements);
+    }
+
+    #[test]
+    fn test_unicode_chars() {
+        let stmt = "SELECT * FROM foo WHERE bar = '\u{1F44D}'";
+        let ast = CassandraAST::new(stmt);
+        assert!(!ast.has_error());
+        let result = &ast.statements[0];
+        assert!(!result.has_error);
+        assert_eq!(0, result.start_byte);
+        assert_eq!(36, result.end_byte);
+        assert_eq!(stmt.to_string(), result.statement.to_string());
     }
 }

@@ -2,7 +2,7 @@ use crate::aggregate::Aggregate;
 use crate::alter_materialized_view::AlterMaterializedView;
 use crate::alter_table::AlterTable;
 use crate::alter_type::AlterType;
-use crate::cassandra_ast::CassandraParser;
+use crate::cassandra_ast::{CassandraParser, ParsedStatement};
 use crate::common::{FQName, Privilege};
 use crate::common_drop::CommonDrop;
 use crate::create_functon::CreateFunction;
@@ -71,15 +71,12 @@ pub enum CassandraStatement {
 impl CassandraStatement {
     /// extract the cassandra statement from an AST tree.
     /// the boolean return value is `true` if there is a parsing error in the statement tree.
-    pub fn from_tree(tree: &Tree, source: &str) -> Vec<(bool, CassandraStatement)> {
+    pub fn from_tree(tree: &Tree, source: &str) -> Vec<ParsedStatement> {
         let mut result = vec![];
         let mut cursor = tree.root_node().walk();
         let mut process = cursor.goto_first_child();
         while process {
-            result.push((
-                cursor.node().is_error(),
-                CassandraStatement::from_node(&cursor.node(), source),
-            ));
+            result.push(ParsedStatement::new(cursor.node(), source));
             process = cursor.goto_next_sibling();
             while process && cursor.node().kind().eq(";") {
                 process = cursor.goto_next_sibling();
@@ -383,8 +380,6 @@ impl Display for CassandraStatement {
 #[cfg(test)]
 mod tests {
     use crate::cassandra_ast::CassandraAST;
-    use crate::cassandra_statement::CassandraStatement;
-    use crate::select::{Named, SelectElement};
 
     // only tests single results
     fn test_parsing(expected: &[&str], statements: &[&str]) {
@@ -397,8 +392,8 @@ mod tests {
                 ast.tree.root_node().to_sexp()
             );
             let stmt = &ast.statements[0];
-            assert!(!stmt.0);
-            let stmt_str = stmt.1.to_string();
+            assert!(!stmt.has_error);
+            let stmt_str = stmt.statement.to_string();
             assert_eq!(expected[i], stmt_str);
         }
     }
@@ -544,7 +539,7 @@ mod tests {
         let qry = "DELETE column, column3 FROM keyspace.table WHERE column2 = 'foo' IF column4 = ?";
         let ast = CassandraAST::new(qry);
         let stmt = &ast.statements[0];
-        let stmt_str = stmt.1.to_string();
+        let stmt_str = stmt.statement.to_string();
         assert_eq!(qry, stmt_str);
     }
 
@@ -1292,96 +1287,5 @@ mod tests {
             "ALTER MATERIALIZED VIEW keyspace.mview WITH option1 = 'option' AND option2 = 3.5",
         ];
         test_parsing(&expected, &stmts);
-    }
-
-    #[test]
-    fn test_invalid_statement() {
-        let statement = "This is an invalid statement";
-        let ast = CassandraAST::new(statement);
-        assert!(ast.has_error());
-        let (result, parsed) = &ast.statements[0];
-        matches!(parsed, CassandraStatement::Unknown(_));
-        assert!(result);
-        assert_eq!(statement.to_string(), parsed.to_string());
-        assert_eq!(
-            statement,
-            match parsed {
-                CassandraStatement::Unknown(text) => text,
-                _ => "",
-            }
-        );
-    }
-
-    #[test]
-    fn test_partial_invalid_statement() {
-        let statement = "SELECT * FROM foo WHERE some invalid part";
-        let expected = [
-            "SELECT * FROM foo",
-            "SELECT * FROM foo WHERE some invalid part",
-        ];
-        let ast = CassandraAST::new(statement);
-        assert!(ast.has_error());
-
-        let (result, parsed) = &ast.statements[0];
-        assert!(!result);
-        matches!(parsed, CassandraStatement::Select(_));
-        assert_eq!(expected[0].to_string(), parsed.to_string());
-
-        let (result, parsed) = &ast.statements[1];
-        assert!(result);
-        matches!(parsed, CassandraStatement::Unknown(_));
-        assert_eq!(expected[1].to_string(), parsed.to_string());
-        assert_eq!(
-            expected[1],
-            match parsed {
-                CassandraStatement::Unknown(text) => text,
-                _ => "",
-            }
-        );
-    }
-
-    #[test]
-    fn test_multiple_statements() {
-        let stmt = "Select * from foo; Select * from bar;";
-        let ast = CassandraAST::new(stmt);
-        assert!(!ast.has_error());
-        assert_eq!(2, ast.statements.len());
-    }
-
-    #[test]
-    fn test_select_element_display() {
-        assert_eq!("*", SelectElement::Star.to_string());
-        assert_eq!(
-            "col",
-            SelectElement::Column(Named {
-                name: "col".to_string(),
-                alias: None
-            })
-            .to_string()
-        );
-        assert_eq!(
-            "func",
-            SelectElement::Function(Named {
-                name: "func".to_string(),
-                alias: None
-            })
-            .to_string()
-        );
-        assert_eq!(
-            "col AS alias",
-            SelectElement::Column(Named {
-                name: "col".to_string(),
-                alias: Some("alias".to_string())
-            })
-            .to_string()
-        );
-        assert_eq!(
-            "func AS alias",
-            SelectElement::Function(Named {
-                name: "func".to_string(),
-                alias: Some("alias".to_string())
-            })
-            .to_string()
-        );
     }
 }

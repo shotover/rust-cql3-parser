@@ -18,8 +18,9 @@ regex = "1"
 bytes = "1.0.0"
 hex = "0.4.3"
 num = { version = "0.4.0", features = ["serde"] }
-uuid = { version = "0.8.2", features = ["serde"]}
+uuid = { version = "1.0.0", features = ["serde"]}
 bigdecimal = {version ="0.3.0", features = ["serde"]}
+serde = { version = "1.0.111", features = ["derive"] }
 
 # Parsers
 tree-sitter = "0.20.5"
