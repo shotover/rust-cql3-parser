@@ -128,3 +128,45 @@ impl Display for Named {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::select::{Named, SelectElement};
+
+    #[test]
+    fn test_select_element_display() {
+        assert_eq!("*", SelectElement::Star.to_string());
+        assert_eq!(
+            "col",
+            SelectElement::Column(Named {
+                name: "col".to_string(),
+                alias: None
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "func",
+            SelectElement::Function(Named {
+                name: "func".to_string(),
+                alias: None
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "col AS alias",
+            SelectElement::Column(Named {
+                name: "col".to_string(),
+                alias: Some("alias".to_string())
+            })
+            .to_string()
+        );
+        assert_eq!(
+            "func AS alias",
+            SelectElement::Function(Named {
+                name: "func".to_string(),
+                alias: Some("alias".to_string())
+            })
+            .to_string()
+        );
+    }
+}
