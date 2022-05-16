@@ -282,6 +282,24 @@ impl CassandraStatement {
             CassandraStatement::Unknown(_) => "UNRECOGNIZED CQL",
         }
     }
+
+    /// returns the table name from the statement if there is one.
+    pub fn get_table_name(&self) -> Option<&FQName> {
+        match self {
+            CassandraStatement::AlterTable(t) => Some(&t.name),
+            CassandraStatement::CreateIndex(i) => Some(&i.table),
+            CassandraStatement::CreateMaterializedView(m) => Some(&m.table),
+            CassandraStatement::CreateTable(t) => Some(&t.name),
+            CassandraStatement::Delete(d) => Some(&d.table_name),
+            CassandraStatement::DropTable(t) => Some(&t.name),
+            CassandraStatement::DropTrigger(t) => Some(&t.table),
+            CassandraStatement::Insert(i) => Some(&i.table_name),
+            CassandraStatement::Select(s) => Some(&s.table_name),
+            CassandraStatement::Truncate(t) => Some(t),
+            CassandraStatement::Update(u) => Some(&u.table_name),
+            _ => None,
+        }
+    }
 }
 
 impl Display for CassandraStatement {
