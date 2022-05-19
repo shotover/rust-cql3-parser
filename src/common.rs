@@ -1,3 +1,4 @@
+use crate::common::Identifier::{Quoted, Unquoted};
 use bigdecimal::BigDecimal;
 use bytes::Bytes;
 use hex;
@@ -6,16 +7,17 @@ use num::BigInt;
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::net::IpAddr;
 use uuid::Uuid;
 
 /// A column definition.
 /// This is used in many places, however the primary_key value should only be used in
-/// the `create table` calls.  In all other cases it will yield an invalid statment.
+/// the `create table` calls.  In all other cases it will yield an invalid statement.
 #[derive(PartialEq, Debug, Clone)]
 pub struct ColumnDefinition {
     /// the name of the column
-    pub name: String,
+    pub name: Identifier,
     /// the data type for the column
     pub data_type: DataType,
     /// if set this column is the primary key.
@@ -166,9 +168,9 @@ pub enum Operand {
     /// a tuple of values.  Displays as `{ Operand, Operand, ... }`
     Tuple(Vec<Operand>),
     /// A column name
-    Column(String),
+    Column(Identifier),
     /// A function name
-    Func(String),
+    Func(Identifier),
     /// A parameter.  The string will either be '?' or ':name'
     Param(String),
     /// the `NULL` value.
@@ -293,7 +295,7 @@ impl From<&Uuid> for Operand {
 }
 
 impl Operand {
-    /// creates creates a properly formated Operand::Const for a hex string.
+    /// creates creates a properly formatted Operand::Const for a hex string.
     fn from_hex(hex_str: &str) -> Operand {
         Operand::Const(format!("0x{}", hex_str))
     }
@@ -301,7 +303,7 @@ impl Operand {
     /// unescapes a CQL string
     /// Specifically converts `''` to `'` and removes the leading and
     /// trailing delimiters.  For all other strings this is method returns
-    /// the argument.
+    /// the argument.  Valid delimiters are `'` and `$$`
     pub fn unescape(value: &str) -> String {
         if value.starts_with('\'') {
             let mut chars = value.chars();
@@ -324,8 +326,8 @@ impl Operand {
     }
 
     /// creates an Operand::Const from an unquoted string.
-    /// if the string contains a "'" it will be quoted by the "$$" pattern.  if it contains "$$" and "'"
-    /// it will be quoted by the "'" pattern and all existing "'" will be replaced with "''"
+    /// if the string contains a `'` it will be quoted by the `$$` pattern.  if it contains `$$` and `'`
+    /// it will be quoted by the `'` pattern and all existing `'` will be replaced with `''` (two single quotes).
     pub fn escape(txt: &str) -> Operand {
         if txt.contains('\'') {
             if txt.contains("$$") {
@@ -342,10 +344,10 @@ impl Operand {
 impl Display for Operand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operand::Column(text)
-            | Operand::Func(text)
-            | Operand::Const(text)
-            | Operand::Param(text) => {
+            Operand::Column(id) | Operand::Func(id) => {
+                write!(f, "{}", id)
+            }
+            Operand::Const(text) | Operand::Param(text) => {
                 write!(f, "{}", text)
             }
             Operand::Map(entries) => {
@@ -553,7 +555,7 @@ impl Display for WithItem {
 #[derive(PartialEq, Debug, Clone)]
 pub struct OrderClause {
     /// the column to order by.
-    pub name: String,
+    pub name: Identifier,
     /// if `true` then the order is descending,
     pub desc: bool,
 }
@@ -593,8 +595,8 @@ impl Display for OptionValue {
 /// There must be at least one column specified in the partition.
 #[derive(PartialEq, Debug, Clone)]
 pub struct PrimaryKey {
-    pub partition: Vec<String>,
-    pub clustering: Vec<String>,
+    pub partition: Vec<Identifier>,
+    pub clustering: Vec<Identifier>,
 }
 
 impl Display for PrimaryKey {
@@ -609,15 +611,15 @@ impl Display for PrimaryKey {
                     f,
                     "PRIMARY KEY ({}, {})",
                     self.partition[0],
-                    self.clustering.join(", ")
+                    self.clustering.iter().map(|c| c.to_string()).join(", ")
                 )
             }
         } else {
             write!(
                 f,
                 "PRIMARY KEY (({}), {})",
-                self.partition.join(", "),
-                self.clustering.join(", ")
+                self.partition.iter().map(|c| c.to_string()).join(", "),
+                self.clustering.iter().map(|c| c.to_string()).join(", ")
             )
         }
     }
@@ -626,7 +628,7 @@ impl Display for PrimaryKey {
 /// A list of resource types recognized by the system
 #[derive(PartialEq, Debug, Clone)]
 pub enum Resource {
-    /// all the functins optionally within a keyspace
+    /// all the functions optionally within a keyspace
     AllFunctions(Option<String>),
     /// all the keyspaces
     AllKeyspaces,
@@ -635,7 +637,7 @@ pub enum Resource {
     /// the specific function.
     Function(FQName),
     /// the specific keyspace
-    Keyspace(String),
+    Keyspace(Identifier),
     /// the specified role.
     Role(String),
     /// the specified table.
@@ -667,8 +669,8 @@ impl WhereClause {
     /// return a map of column names to relation elements
     pub fn get_column_relation_element_map(
         where_clause: &[RelationElement],
-    ) -> BTreeMap<String, Vec<RelationElement>> {
-        let mut result: BTreeMap<String, Vec<RelationElement>> = BTreeMap::new();
+    ) -> BTreeMap<Identifier, Vec<RelationElement>> {
+        let mut result: BTreeMap<Identifier, Vec<RelationElement>> = BTreeMap::new();
 
         for relation_element in where_clause {
             if let Operand::Column(key) = &relation_element.obj {
@@ -684,7 +686,7 @@ impl WhereClause {
     }
 
     /// get the unordered set of column names for found in the where clause
-    pub fn get_column_list(where_clause: Vec<RelationElement>) -> HashSet<String> {
+    pub fn get_column_list(where_clause: Vec<RelationElement>) -> HashSet<Identifier> {
         where_clause
             .into_iter()
             .filter_map(|relation_element| match relation_element.obj {
@@ -697,27 +699,27 @@ impl WhereClause {
 
 #[derive(PartialEq, Debug, Clone, Hash, Eq, Deserialize)]
 pub struct FQName {
-    pub keyspace: Option<String>,
-    pub name: String,
+    pub keyspace: Option<Identifier>,
+    pub name: Identifier,
 }
 
 impl FQName {
     pub fn simple(name: &str) -> FQName {
         FQName {
             keyspace: None,
-            name: name.into(),
+            name: Identifier::parse(name),
         }
     }
 
     pub fn new(keyspace: &str, name: &str) -> FQName {
         FQName {
-            keyspace: Some(keyspace.into()),
-            name: name.into(),
+            keyspace: Some(Identifier::parse(keyspace)),
+            name: Identifier::parse(name),
         }
     }
 
     /// extracts the keyspace,  Return default if none
-    pub fn extract_keyspace<'a>(&'a self, default: &'a str) -> &'a str {
+    pub fn extract_keyspace<'a>(&'a self, default: &'a Identifier) -> &'a Identifier {
         if let Some(keyspace) = &self.keyspace {
             keyspace
         } else {
@@ -748,9 +750,84 @@ impl From<FQName> for std::string::String {
     }
 }
 
+#[derive(Debug, Clone, Eq, Ord, PartialOrd, Deserialize)]
+
+/// Identifers are either Quoted or Unquoted.
+///  * Unquoted Identifiers:  are case insensitive
+///  * Quoted Identifiers: are case sensitive.  double quotes appearing within the quoted string are escaped by doubling (i.e. `"foo""bar" is interpreted as `foo"bar`)
+///
+/// Quoted lower lower case is equivalent to unquoted mixed case.
+/// Quoted( myid ) == Unquoted( myid )
+/// Quoted( myid ) == Unquoted( "myId" )
+/// Quoted( myid ) != Quoted( "myId" )
+///
+/// It is possible to create an Unquoted identifier with an embedded quote (e.g. `Identifier::Unquoted( "foo\"bar" )`).
+/// *Note* that a quote as the first character in an Unquoted Identifier can cause problems if the Identifier is converted
+/// to a string and then parsed again as the second parse will create a Quoted identifier.
+pub enum Identifier {
+    /// This variant is case sensitive
+    /// "fOo""bAr""" is stored as fOo"bAr"
+    Quoted(String),
+    /// This variant is case insensitive
+    /// Only ascii alphanumeric and _ characters are allowed in this variant
+    /// fOo_bAr is stored as fOo_bAr
+    Unquoted(String),
+}
+
+impl Identifier {
+    /// parses strings as returned by the parser into Quoted or Unquoted Identifiers.
+    ///  * Unquoted Identifiers:  are case insensitive
+    ///  * Quoted Identifiers: are case sensitive.  double quotes appearing within the quoted string
+    /// are escaped by doubling (i.e. `"foo""bar" is interpreted as `foo"bar`)
+    ///
+    /// If the string starts with `"` it is assumed to be a quoted identifier, the leading and trailing quotes are removed
+    /// and the internal doubled quotes (`""`) are converted to simple quotes (`"`).
+    pub fn parse(text: &str) -> Identifier {
+        if text.starts_with('"') {
+            let mut chars = text.chars();
+            chars.next();
+            chars.next_back();
+            Quoted(chars.as_str().replace("\"\"", "\""))
+        } else {
+            Unquoted(text.to_string())
+        }
+    }
+}
+
+impl PartialEq for Identifier {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (&Quoted(ref a), &Quoted(ref b)) => a == b,
+            (&Unquoted(ref a), &Unquoted(ref b)) => a.to_lowercase() == b.to_lowercase(),
+            (&Quoted(ref a), &Unquoted(ref b)) => a == &b.to_lowercase(),
+            (&Unquoted(ref a), &Quoted(ref b)) => &a.to_lowercase() == b,
+        }
+    }
+}
+
+impl Hash for Identifier {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match &self {
+            Quoted(ref a) => a.hash(state),
+            Unquoted(ref a) => a.to_lowercase().hash(state),
+        }
+    }
+}
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            Quoted(txt) => write!(f, "\"{}\"", txt.replace('\"', "\"\"")),
+            Unquoted(txt) => write!(f, "{}", txt),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::common::Operand;
+    use crate::common::{Identifier, Operand};
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
 
     #[test]
     pub fn test_operand_unescape() {
@@ -794,5 +871,74 @@ mod tests {
         for (expected, arg) in tests {
             assert_eq!(Operand::Const(expected.to_string()), Operand::escape(arg));
         }
+    }
+
+    #[test]
+    pub fn test_identifier_parse_quoted() {
+        let args = [
+            (r#""""hello"", she said""#, r#""hello", she said"#),
+            (r#""CaseSpecific""#, "CaseSpecific"),
+        ];
+
+        for (arg, expected) in args {
+            let x = Identifier::parse(arg);
+            assert_eq!(arg, x.to_string());
+            if let Identifier::Quoted(txt) = x {
+                assert_eq!(expected, txt);
+            } else {
+                panic!("Should  be quoted");
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_identifier_parse_unquoted() {
+        let args = ["just_A_name", "CaseSpecific"];
+
+        for arg in args {
+            let x = Identifier::parse(arg);
+            assert_eq!(arg, x.to_string());
+            if let Identifier::Unquoted(txt) = x {
+                assert_eq!(arg, txt);
+            } else {
+                panic!("Should  be unquoted");
+            }
+        }
+    }
+
+    fn assert_identifier_equality(left: &Identifier, right: &Identifier) {
+        assert_eq!(left, right);
+        assert_eq!(right, left);
+        let mut left_hasher = DefaultHasher::new();
+        left.hash(&mut left_hasher);
+
+        let mut right_hasher = DefaultHasher::new();
+        right.hash(&mut right_hasher);
+        assert_eq!(left_hasher.finish(), right_hasher.finish());
+    }
+
+    fn assert_identifier_inequality(left: &Identifier, right: &Identifier) {
+        assert!(!left.eq(right));
+        assert!(!right.eq(left));
+    }
+
+    #[test]
+    pub fn test_identifier_equality() {
+        let lower_case_unquoted = Identifier::Unquoted("myid".to_string());
+        let mixed_case_unquoted = Identifier::Unquoted("myId".to_string());
+        let lower_case_quoted = Identifier::Quoted("myid".to_string());
+        let mixed_case_quoted = Identifier::Quoted("MyId".to_string());
+
+        let quote_in_unquoted = Identifier::Unquoted("\"now\"".to_string());
+        let quote_in_quoted = Identifier::Quoted("\"now\"".to_string());
+
+        assert_identifier_equality(&lower_case_unquoted, &mixed_case_unquoted);
+
+        assert_identifier_equality(&lower_case_unquoted, &lower_case_quoted);
+        assert_identifier_inequality(&mixed_case_quoted, &mixed_case_unquoted);
+        assert_identifier_inequality(&mixed_case_quoted, &lower_case_unquoted);
+        assert_identifier_inequality(&mixed_case_quoted, &lower_case_quoted);
+
+        assert_identifier_equality(&quote_in_quoted, &quote_in_unquoted);
     }
 }

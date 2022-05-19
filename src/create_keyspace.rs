@@ -1,3 +1,4 @@
+use crate::common::Identifier;
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -5,7 +6,7 @@ use std::fmt::{Display, Formatter};
 #[derive(PartialEq, Debug, Clone)]
 pub struct CreateKeyspace {
     /// the name of the keyspace
-    pub name: String,
+    pub name: Identifier,
     /// replication strategy options.
     pub replication: Vec<(String, String)>,
     /// if specified the DURABLE WRITES option will be output.

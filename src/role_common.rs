@@ -1,3 +1,4 @@
+use crate::common::Identifier;
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -5,7 +6,7 @@ use std::fmt::{Display, Formatter};
 #[derive(PartialEq, Debug, Clone)]
 pub struct RoleCommon {
     /// the name of the role
-    pub name: String,
+    pub name: Identifier,
     /// if specified the password for the role
     pub password: Option<String>,
     /// if specified then the user is explicitly noted as `SUPERUER` or `NOSUPERUSER`

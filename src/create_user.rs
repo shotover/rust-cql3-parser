@@ -1,10 +1,11 @@
+use crate::common::Identifier;
 use std::fmt::{Display, Formatter};
 
 /// data for the `create user` statement.
 #[derive(PartialEq, Debug, Clone)]
 pub struct CreateUser {
     /// the user name
-    pub name: String,
+    pub name: Identifier,
     /// the password for the user.
     pub password: Option<String>,
     /// if true the `SUPERUSER` option is specified

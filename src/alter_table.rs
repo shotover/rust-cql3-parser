@@ -1,4 +1,4 @@
-use crate::common::{ColumnDefinition, FQName, WithItem};
+use crate::common::{ColumnDefinition, FQName, Identifier, WithItem};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -17,11 +17,11 @@ pub enum AlterTableOperation {
     /// add columns to the table.
     Add(Vec<ColumnDefinition>),
     /// drop columns from the table.
-    DropColumns(Vec<String>),
+    DropColumns(Vec<Identifier>),
     /// drop the "compact storage"
     DropCompactStorage,
     /// rename columns `(from, to)`
-    Rename((String, String)),
+    Rename((Identifier, Identifier)),
     /// add with element options.
     With(Vec<WithItem>),
 }
@@ -34,7 +34,11 @@ impl Display for AlterTableOperation {
                 "ADD {}",
                 columns.iter().map(|x| x.to_string()).join(", ")
             ),
-            AlterTableOperation::DropColumns(columns) => write!(f, "DROP {}", columns.join(", ")),
+            AlterTableOperation::DropColumns(columns) => write!(
+                f,
+                "DROP {}",
+                columns.iter().map(|c| c.to_string()).join(", ")
+            ),
             AlterTableOperation::DropCompactStorage => write!(f, "DROP COMPACT STORAGE"),
             AlterTableOperation::Rename((from, to)) => write!(f, "RENAME {} TO {}", from, to),
             AlterTableOperation::With(with_element) => write!(

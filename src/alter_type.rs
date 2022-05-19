@@ -1,5 +1,5 @@
 use crate::alter_column::AlterColumnType;
-use crate::common::{ColumnDefinition, FQName};
+use crate::common::{ColumnDefinition, FQName, Identifier};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -26,7 +26,7 @@ pub enum AlterTypeOperation {
     /// Add a columm
     Add(Vec<ColumnDefinition>),
     /// rename a column
-    Rename(Vec<(String, String)>),
+    Rename(Vec<(Identifier, Identifier)>),
 }
 
 impl Display for AlterTypeOperation {

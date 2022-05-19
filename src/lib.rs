@@ -9,7 +9,6 @@ pub mod cassandra_statement;
 pub mod common;
 pub mod common_drop;
 pub mod create_function;
-pub mod create_functon;
 pub mod create_index;
 pub mod create_keyspace;
 pub mod create_materialized_view;

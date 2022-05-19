@@ -24,7 +24,7 @@ serde = { version = "1.0.111", features = ["derive"] }
 
 # Parsers
 tree-sitter = "0.20.5"
-tree-sitter-cql = "0.0.1"
+tree-sitter-cql = { git = "https://github.com/Claude-at-Instaclustr/tree-sitter-cql.git", branch="fix_quoting"  }
 
 [dev-dependencies]
 

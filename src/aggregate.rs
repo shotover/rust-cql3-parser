@@ -8,9 +8,9 @@ pub struct Aggregate {
     pub not_exists: bool,
     pub name: FQName,
     pub data_type: DataType,
-    pub sfunc: String,
+    pub sfunc: FQName,
     pub stype: DataType,
-    pub finalfunc: String,
+    pub finalfunc: FQName,
     pub init_cond: InitCondition,
 }
 

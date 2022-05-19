@@ -1,5 +1,5 @@
 use crate::begin_batch::BeginBatch;
-use crate::common::{FQName, Operand, TtlTimestamp};
+use crate::common::{FQName, Identifier, Operand, TtlTimestamp};
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
@@ -12,7 +12,7 @@ pub struct Insert {
     /// the table name
     pub table_name: FQName,
     /// an the list of of column names to insert into.
-    pub columns: Vec<String>,
+    pub columns: Vec<Identifier>,
     /// the `VALUES` to insert
     pub values: InsertValues,
     /// if set the timestamp for `USING TTL`
@@ -23,7 +23,7 @@ pub struct Insert {
 
 impl Insert {
     /// return a sorted map of column names to Operands.
-    pub fn get_value_map(&self) -> BTreeMap<String, &Operand> {
+    pub fn get_value_map(&self) -> BTreeMap<Identifier, &Operand> {
         let mut result = BTreeMap::new();
         match &self.values {
             InsertValues::Values(operands) => {
@@ -49,7 +49,7 @@ impl Display for Insert {
                 .as_ref()
                 .map_or("".to_string(), |x| x.to_string()),
             self.table_name,
-            self.columns.join(", "),
+            self.columns.iter().map(|c| c.to_string()).join(", "),
             self.values,
             if self.if_not_exists {
                 " IF NOT EXISTS"

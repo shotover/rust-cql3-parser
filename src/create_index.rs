@@ -1,4 +1,4 @@
-use crate::common::FQName;
+use crate::common::{FQName, Identifier};
 use std::fmt::{Display, Formatter};
 
 /// data to for the create index statement.
@@ -7,7 +7,7 @@ pub struct CreateIndex {
     /// only if not exists.
     pub if_not_exists: bool,
     /// optional name of the index.
-    pub name: Option<String>,
+    pub name: Option<Identifier>,
     /// the table the index is on.
     pub table: FQName,
     /// the index column type.
@@ -39,13 +39,13 @@ impl Display for CreateIndex {
 #[derive(PartialEq, Debug, Clone)]
 pub enum IndexColumnType {
     /// column is a column
-    Column(String),
+    Column(Identifier),
     /// use the keys from the column
-    Keys(String),
+    Keys(Identifier),
     /// use the entries from the column
-    Entries(String),
+    Entries(Identifier),
     /// use the full column entry.
-    Full(String),
+    Full(Identifier),
 }
 
 impl Display for IndexColumnType {
