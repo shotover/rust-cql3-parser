@@ -1,5 +1,5 @@
 use crate::begin_batch::BeginBatch;
-use crate::common::{FQName, RelationElement};
+use crate::common::{FQName, Identifier, RelationElement};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
@@ -59,7 +59,7 @@ impl Display for Delete {
 #[derive(PartialEq, Debug, Clone)]
 pub struct IndexedColumn {
     /// the column name
-    pub column: String,
+    pub column: Identifier,
     /// the optional index in to the column
     pub idx: Option<String>,
 }

@@ -1306,7 +1306,7 @@ impl CassandraParser {
     /// parse an indexed column
     fn parse_indexed_column(cursor: &mut TreeCursor, source: &str) -> IndexedColumn {
         IndexedColumn {
-            column: NodeFuncs::as_string(&cursor.node(), source),
+            column: CassandraParser::parse_identifier(&cursor.node(), source),
 
             idx: if cursor.goto_next_sibling() && cursor.node().kind().eq("[") {
                 // consume '['
