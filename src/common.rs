@@ -829,6 +829,18 @@ impl Default for Identifier {
     }
 }
 
+impl From<&str> for Identifier {
+    fn from(txt: &str) -> Self {
+        Identifier::parse(txt)
+    }
+}
+
+impl From<&String> for Identifier {
+    fn from(txt: &String) -> Self {
+        Identifier::parse(txt)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::common::{Identifier, Operand};
