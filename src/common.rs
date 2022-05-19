@@ -697,6 +697,7 @@ impl WhereClause {
     }
 }
 
+/// a fully qualified name.
 #[derive(PartialEq, Debug, Clone, Hash, Eq, Deserialize)]
 pub struct FQName {
     pub keyspace: Option<Identifier>,
@@ -704,6 +705,17 @@ pub struct FQName {
 }
 
 impl FQName {
+    /// parses the FQName from a string.  Breaks the string at the first dot (`.`) and makes the left
+    /// string the keyspace and the second string the name. If no dot is present the entire string
+    /// is the name.
+    pub fn parse(txt : &str) -> FQName{
+        let parts = txt.split( '.').collect_vec();
+        if parts.len()>1 {
+            FQName::new( parts[0], parts[1] )
+        } else {
+            FQName::simple( txt )
+        }
+    }
     pub fn simple(name: &str) -> FQName {
         FQName {
             keyspace: None,
@@ -843,7 +855,7 @@ impl From<&String> for Identifier {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::{Identifier, Operand};
+    use crate::common::{FQName, Identifier, Operand};
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -958,5 +970,37 @@ mod tests {
         assert_identifier_inequality(&mixed_case_quoted, &lower_case_quoted);
 
         assert_identifier_equality(&quote_in_quoted, &quote_in_unquoted);
+    }
+
+
+    #[test]
+    pub fn test_fqname_parse() {
+        let name = FQName::parse("myid");
+        assert_eq!(FQName::simple("myid"), name);
+
+        let name = FQName::parse("myId");
+        assert_eq!(FQName::simple("myId"), name);
+        assert_eq!(Identifier::Unquoted("myId".to_string()), name.name);
+
+        let name = FQName::parse(r#""myId""#);
+        assert_eq!(FQName::simple("\"myId\""), name);
+        assert_eq!(Identifier::Quoted("myId".to_string()), name.name);
+
+        assert_eq!(FQName::new("myid", "name"), FQName::parse("myid.name"));
+
+        let name = FQName::parse("myId.Name");
+        assert_eq!(FQName::new("myId", "Name"), name);
+        assert_eq!(Some(Identifier::Unquoted("MyId".to_string())), name.keyspace);
+        assert_eq!(Identifier::Unquoted("Name".to_string()), name.name);
+
+        let name = FQName::parse("\"myId\".Name");
+        assert_eq!(FQName::new("\"myId\"", "Name"), name);
+        assert_eq!(Some(Identifier::Quoted("myId".to_string())), name.keyspace);
+        assert_eq!(Identifier::Unquoted("Name".to_string()), name.name);
+
+        let name = FQName::parse("\"myId\".\"Name\"");
+        assert_eq!(FQName::new("\"myId\"", "\"Name\""), name);
+        assert_eq!(Some(Identifier::Quoted("myId".to_string())), name.keyspace);
+        assert_eq!(Identifier::Quoted("Name".to_string()), name.name);
     }
 }
