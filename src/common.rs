@@ -823,6 +823,12 @@ impl Display for Identifier {
     }
 }
 
+impl Default for Identifier {
+    fn default() -> Self {
+        Unquoted("".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::common::{Identifier, Operand};
