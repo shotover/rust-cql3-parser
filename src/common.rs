@@ -708,12 +708,12 @@ impl FQName {
     /// parses the FQName from a string.  Breaks the string at the first dot (`.`) and makes the left
     /// string the keyspace and the second string the name. If no dot is present the entire string
     /// is the name.
-    pub fn parse(txt : &str) -> FQName{
-        let parts = txt.split( '.').collect_vec();
-        if parts.len()>1 {
-            FQName::new( parts[0], parts[1] )
+    pub fn parse(txt: &str) -> FQName {
+        let parts = txt.split('.').collect_vec();
+        if parts.len() > 1 {
+            FQName::new(parts[0], parts[1])
         } else {
-            FQName::simple( txt )
+            FQName::simple(txt)
         }
     }
     pub fn simple(name: &str) -> FQName {
@@ -972,7 +972,6 @@ mod tests {
         assert_identifier_equality(&quote_in_quoted, &quote_in_unquoted);
     }
 
-
     #[test]
     pub fn test_fqname_parse() {
         let name = FQName::parse("myid");
@@ -990,7 +989,10 @@ mod tests {
 
         let name = FQName::parse("myId.Name");
         assert_eq!(FQName::new("myId", "Name"), name);
-        assert_eq!(Some(Identifier::Unquoted("MyId".to_string())), name.keyspace);
+        assert_eq!(
+            Some(Identifier::Unquoted("MyId".to_string())),
+            name.keyspace
+        );
         assert_eq!(Identifier::Unquoted("Name".to_string()), name.name);
 
         let name = FQName::parse("\"myId\".Name");

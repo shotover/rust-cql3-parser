@@ -1,6 +1,6 @@
 [package]
 name = "cql3-parser"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Claude <claude.warren@instaclustr.com>"]
 edition = "2021"
 rust-version = "1.56"
@@ -24,7 +24,7 @@ serde = { version = "1.0.111", features = ["derive"] }
 
 # Parsers
 tree-sitter = "0.20.5"
-tree-sitter-cql = { git = "https://github.com/Claude-at-Instaclustr/tree-sitter-cql.git", branch="fix_quoting"  }
+tree-sitter-cql = { git = "https://github.com/shotover/tree-sitter-cql.git", branch="main"  }
 
 [dev-dependencies]
 
