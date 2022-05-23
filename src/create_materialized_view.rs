@@ -1,4 +1,4 @@
-use crate::common::{FQName, PrimaryKey};
+use crate::common::{FQName, Identifier, PrimaryKey};
 use crate::common::{RelationElement, WithItem};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
@@ -11,7 +11,7 @@ pub struct CreateMaterializedView {
     /// the name of the materialized view.
     pub name: FQName,
     /// the columns in the view.
-    pub columns: Vec<String>,
+    pub columns: Vec<Identifier>,
     /// the table to extract the view from.
     pub table: FQName,
     /// the where clause to select.  Note: all elements of the primary key must be listed
@@ -34,7 +34,7 @@ impl Display for CreateMaterializedView {
                 ""
             },
             self.name,
-            self.columns.join(", "),
+            self.columns.iter().map(|c| c.to_string()).join(", "),
             self.table,
             self.where_clause.iter().join(" AND "),
             self.key,

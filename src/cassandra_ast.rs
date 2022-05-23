@@ -6,12 +6,12 @@ use crate::alter_type::{AlterType, AlterTypeOperation};
 use crate::begin_batch::BeginBatch;
 use crate::cassandra_statement::CassandraStatement;
 use crate::common::{
-    ColumnDefinition, DataType, DataTypeName, FQName, Operand, OptionValue, OrderClause,
-    PrimaryKey, Privilege, PrivilegeType, RelationElement, RelationOperator, Resource,
+    ColumnDefinition, DataType, DataTypeName, FQName, Identifier, Operand, OptionValue,
+    OrderClause, PrimaryKey, Privilege, PrivilegeType, RelationElement, RelationOperator, Resource,
     TtlTimestamp, WithItem,
 };
 use crate::common_drop::CommonDrop;
-use crate::create_functon::CreateFunction;
+use crate::create_function::CreateFunction;
 use crate::create_index::{CreateIndex, IndexColumnType};
 use crate::create_keyspace::CreateKeyspace;
 use crate::create_materialized_view::CreateMaterializedView;
@@ -39,11 +39,20 @@ impl NodeFuncs {
     pub fn as_boolean(node: &Node, source: &str) -> bool {
         NodeFuncs::as_string(node, source).to_uppercase().eq("TRUE")
     }
+
+    /// get the string value of the node
+    pub fn as_str<'a>(node: &'a Node, source: &'a str) -> &'a str {
+        node.utf8_text(source.as_bytes()).unwrap()
+    }
 }
 
 /// The parser that walks the AST tree and produces a CassandraStatement.
 pub struct CassandraParser {}
 impl CassandraParser {
+    pub fn parse_identifier(node: &Node, source: &str) -> Identifier {
+        Identifier::parse(NodeFuncs::as_str(node, source))
+    }
+
     pub fn parse_truncate(node: &Node, source: &str) -> FQName {
         let mut cursor = node.walk();
         cursor.goto_first_child();
@@ -54,12 +63,12 @@ impl CassandraParser {
         CassandraParser::parse_table_name(&cursor.node(), source)
     }
 
-    pub fn parse_use(node: &Node, source: &str) -> String {
+    pub fn parse_use(node: &Node, source: &str) -> Identifier {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume 'USE'
         cursor.goto_next_sibling();
-        NodeFuncs::as_string(&cursor.node(), source)
+        Identifier::parse(NodeFuncs::as_str(&cursor.node(), source))
     }
 
     /// parse the alter materialized view command
@@ -180,7 +189,7 @@ impl CassandraParser {
                 cursor.goto_next_sibling();
                 // consume 'SFUNC'
                 cursor.goto_next_sibling();
-                NodeFuncs::as_string(&cursor.node(), source)
+                CassandraParser::parse_table_name(&cursor.node(), source)
             },
             stype: {
                 cursor.goto_next_sibling();
@@ -192,7 +201,7 @@ impl CassandraParser {
                 cursor.goto_next_sibling();
                 // consume 'FINALFUNC'
                 cursor.goto_next_sibling();
-                NodeFuncs::as_string(&cursor.node(), source)
+                CassandraParser::parse_table_name(&cursor.node(), source)
             },
             init_cond: {
                 cursor.goto_next_sibling();
@@ -300,7 +309,7 @@ impl CassandraParser {
                         // consume 'ALTER'
                         cursor.goto_next_sibling();
                         AlterTypeOperation::AlterColumnType(AlterColumnType {
-                            name: NodeFuncs::as_string(&cursor.node(), source),
+                            name: CassandraParser::parse_identifier(&cursor.node(), source),
                             data_type: {
                                 cursor.goto_next_sibling();
                                 // consume 'TYPE'
@@ -330,11 +339,13 @@ impl CassandraParser {
                         while cursor.goto_next_sibling() {
                             if cursor.node().kind().eq("alter_type_rename_item") {
                                 cursor.goto_first_child();
-                                let first = NodeFuncs::as_string(&cursor.node(), source);
+                                let first =
+                                    CassandraParser::parse_identifier(&cursor.node(), source);
                                 cursor.goto_next_sibling();
                                 // consume 'TO'
                                 cursor.goto_next_sibling();
-                                let second = NodeFuncs::as_string(&cursor.node(), source);
+                                let second =
+                                    CassandraParser::parse_identifier(&cursor.node(), source);
                                 pairs.push((first, second));
                                 cursor.goto_parent();
                             }
@@ -406,11 +417,11 @@ impl CassandraParser {
             }
             "alter_table_drop_columns" => {
                 cursor.goto_first_child();
-                let mut columns: Vec<String> = vec![];
+                let mut columns: Vec<Identifier> = vec![];
                 // consume 'DROP'
                 while cursor.goto_next_sibling() {
                     if cursor.node().kind().eq("object_name") {
-                        columns.push(NodeFuncs::as_string(&cursor.node(), source));
+                        columns.push(CassandraParser::parse_identifier(&cursor.node(), source));
                     }
                 }
                 AlterTableOperation::DropColumns(columns)
@@ -420,11 +431,11 @@ impl CassandraParser {
                 cursor.goto_first_child();
                 // consume the 'FROM'
                 cursor.goto_next_sibling();
-                let from = NodeFuncs::as_string(&cursor.node(), source);
+                let from = CassandraParser::parse_identifier(&cursor.node(), source);
                 cursor.goto_next_sibling();
                 // consume the 'TO'
                 cursor.goto_next_sibling();
-                let to = NodeFuncs::as_string(&cursor.node(), source);
+                let to = CassandraParser::parse_identifier(&cursor.node(), source);
                 AlterTableOperation::Rename((from, to))
             }
             "with_element" => AlterTableOperation::With(CassandraParser::parse_with_element(
@@ -469,7 +480,7 @@ impl CassandraParser {
                         cursor.goto_first_child();
                         primary_key
                             .partition
-                            .push(NodeFuncs::as_string(&cursor.node(), source));
+                            .push(CassandraParser::parse_identifier(&cursor.node(), source));
                         cursor.goto_next_sibling();
                         // consume the ','
                         cursor.goto_next_sibling();
@@ -479,7 +490,10 @@ impl CassandraParser {
                             if !cursor.node().kind().eq(",") {
                                 primary_key
                                     .clustering
-                                    .push(NodeFuncs::as_string(&cursor.node(), source));
+                                    .push(CassandraParser::parse_identifier(
+                                        &cursor.node(),
+                                        source,
+                                    ));
                             }
                             process = cursor.goto_next_sibling();
                         }
@@ -493,9 +507,12 @@ impl CassandraParser {
                                     cursor.goto_first_child();
                                     while process {
                                         if cursor.node().kind().eq("object_name") {
-                                            primary_key
-                                                .partition
-                                                .push(NodeFuncs::as_string(&cursor.node(), source));
+                                            primary_key.partition.push(
+                                                CassandraParser::parse_identifier(
+                                                    &cursor.node(),
+                                                    source,
+                                                ),
+                                            );
                                         }
                                         process = cursor.goto_next_sibling();
                                     }
@@ -505,9 +522,12 @@ impl CassandraParser {
                                     cursor.goto_first_child();
                                     while process {
                                         if cursor.node().kind().eq("object_name") {
-                                            primary_key
-                                                .clustering
-                                                .push(NodeFuncs::as_string(&cursor.node(), source));
+                                            primary_key.clustering.push(
+                                                CassandraParser::parse_identifier(
+                                                    &cursor.node(),
+                                                    source,
+                                                ),
+                                            );
                                         }
                                         process = cursor.goto_next_sibling();
                                     }
@@ -520,7 +540,7 @@ impl CassandraParser {
                     }
                     _ => primary_key
                         .partition
-                        .push(NodeFuncs::as_string(&cursor.node(), source)),
+                        .push(CassandraParser::parse_identifier(&cursor.node(), source)),
                 }
             }
         }
@@ -557,7 +577,7 @@ impl CassandraParser {
         let mut cursor = node.walk();
         cursor.goto_first_child();
         ColumnDefinition {
-            name: NodeFuncs::as_string(&cursor.node(), source),
+            name: CassandraParser::parse_identifier(&cursor.node(), source),
             data_type: {
                 cursor.goto_next_sibling();
                 CassandraParser::parse_data_type(&cursor.node(), source)
@@ -614,7 +634,7 @@ impl CassandraParser {
                     // consume '('
                     cursor.goto_next_sibling();
                     result.push(WithItem::ClusterOrder(OrderClause {
-                        name: NodeFuncs::as_string(&cursor.node(), source),
+                        name: CassandraParser::parse_identifier(&cursor.node(), source),
                         desc: {
                             // consume the name
                             if cursor.goto_next_sibling() {
@@ -644,7 +664,7 @@ impl CassandraParser {
             if cursor.node().kind().eq("column_not_null") {
                 cursor.goto_first_child();
                 relations.push(RelationElement {
-                    obj: Operand::Column(NodeFuncs::as_string(&cursor.node(), source)),
+                    obj: Operand::Column(CassandraParser::parse_identifier(&cursor.node(), source)),
                     oper: RelationOperator::IsNot,
                     value: Operand::Null,
                 });
@@ -758,64 +778,65 @@ impl CassandraParser {
         vec![]
     }
 
+    fn parse_index_column_spec(node: &Node, source: &str) -> IndexColumnType {
+        let mut cursor = node.walk();
+        cursor.goto_first_child();
+        match cursor.node().kind() {
+            "index_keys_spec" => {
+                cursor.goto_first_child();
+                cursor.goto_next_sibling();
+                // consume '('
+                cursor.goto_next_sibling();
+                IndexColumnType::Keys(CassandraParser::parse_identifier(&cursor.node(), source))
+            }
+            "index_entries_s_spec" => {
+                cursor.goto_first_child();
+                cursor.goto_next_sibling();
+                // consume '('
+                cursor.goto_next_sibling();
+                IndexColumnType::Entries(CassandraParser::parse_identifier(&cursor.node(), source))
+            }
+            "index_full_spec" => {
+                cursor.goto_next_sibling();
+                // consume '('
+                cursor.goto_first_child();
+                cursor.goto_next_sibling();
+                // consume '('
+                cursor.goto_next_sibling();
+                IndexColumnType::Full(CassandraParser::parse_identifier(&cursor.node(), source))
+            }
+            _ => IndexColumnType::Column(CassandraParser::parse_identifier(&cursor.node(), source)),
+        }
+    }
+
     /// parse create index statement.
     pub fn parse_index(node: &Node, source: &str) -> CreateIndex {
         let mut cursor = node.walk();
         cursor.goto_first_child();
-        let mut result = CreateIndex {
+        CreateIndex {
             if_not_exists: CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor),
-            name: None,
-            table: FQName::simple(""),
-            column: IndexColumnType::Column("".to_string()),
-        };
-        let mut process = true;
-        while process {
-            match cursor.node().kind() {
-                "short_index_name" => {
-                    cursor.goto_first_child();
-                    result.name = Some(NodeFuncs::as_string(&cursor.node(), source));
-                    cursor.goto_parent();
+
+            name: {
+                let mut nm = None;
+                if cursor.node().kind() == "short_index_name" {
+                    nm = Some(Identifier::parse(NodeFuncs::as_str(&cursor.node(), source)));
+                    cursor.goto_next_sibling();
                 }
-                "table_name" => {
-                    cursor.goto_first_child();
-                    result.table = CassandraParser::parse_dotted_name(&mut cursor, source);
-                    cursor.goto_parent();
-                }
-                "index_column_spec" => {
-                    cursor.goto_first_child();
-                    result.column = match cursor.node().kind() {
-                        "index_keys_spec" => {
-                            cursor.goto_first_child();
-                            cursor.goto_next_sibling();
-                            // consume '('
-                            cursor.goto_next_sibling();
-                            IndexColumnType::Keys(NodeFuncs::as_string(&cursor.node(), source))
-                        }
-                        "index_entries_s_spec" => {
-                            cursor.goto_first_child();
-                            cursor.goto_next_sibling();
-                            // consume '('
-                            cursor.goto_next_sibling();
-                            IndexColumnType::Entries(NodeFuncs::as_string(&cursor.node(), source))
-                        }
-                        "index_full_spec" => {
-                            cursor.goto_next_sibling();
-                            // consume '('
-                            cursor.goto_first_child();
-                            cursor.goto_next_sibling();
-                            // consume '('
-                            cursor.goto_next_sibling();
-                            IndexColumnType::Full(NodeFuncs::as_string(&cursor.node(), source))
-                        }
-                        _ => IndexColumnType::Column(NodeFuncs::as_string(&cursor.node(), source)),
-                    };
-                    cursor.goto_parent();
-                }
-                _ => {}
-            }
-            process = cursor.goto_next_sibling();
+                nm
+            },
+
+            table: {
+                // consume ON
+                cursor.goto_next_sibling();
+                CassandraParser::parse_table_name(&cursor.node(), source)
+            },
+            column: {
+                cursor.goto_next_sibling();
+                // consume '('
+                cursor.goto_next_sibling();
+                CassandraParser::parse_index_column_spec(&cursor.node(), source)
+            },
         }
-        result
     }
 
     /// parse the list roles statement
@@ -831,7 +852,9 @@ impl CassandraParser {
         // consume 'ROLES'
         while cursor.goto_next_sibling() {
             match cursor.node().kind() {
-                "role" => result.of = Some(NodeFuncs::as_string(&cursor.node(), source)),
+                "role" => {
+                    result.of = Some(CassandraParser::parse_identifier(&cursor.node(), source))
+                }
                 "NORECURSIVE" => result.no_recurse = true,
                 _ => {}
             }
@@ -872,7 +895,7 @@ impl CassandraParser {
             }
             "KEYSPACE" => {
                 cursor.goto_next_sibling();
-                Resource::Keyspace(NodeFuncs::as_string(&cursor.node(), source))
+                Resource::Keyspace(CassandraParser::parse_identifier(&cursor.node(), source))
             }
             "ROLE" => {
                 cursor.goto_next_sibling();
@@ -892,7 +915,7 @@ impl CassandraParser {
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
         let mut result = RoleCommon {
-            name: NodeFuncs::as_string(&cursor.node(), source),
+            name: CassandraParser::parse_identifier(&cursor.node(), source),
             password: None,
             superuser: None,
             login: None,
@@ -986,7 +1009,7 @@ impl CassandraParser {
         cursor.goto_first_child();
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
         let mut result = CreateKeyspace {
-            name: NodeFuncs::as_string(&cursor.node(), source),
+            name: CassandraParser::parse_identifier(&cursor.node(), source),
             replication: vec![],
             durable_writes: None,
             if_not_exists,
@@ -1019,7 +1042,7 @@ impl CassandraParser {
         let if_not_exists = CassandraParser::consume_2_keywords_and_check_not_exists(&mut cursor);
 
         let mut result = CreateUser {
-            name: NodeFuncs::as_string(&cursor.node(), source),
+            name: CassandraParser::parse_identifier(&cursor.node(), source),
             password: None,
             superuser: false,
             no_superuser: false,
@@ -1283,7 +1306,7 @@ impl CassandraParser {
     /// parse an indexed column
     fn parse_indexed_column(cursor: &mut TreeCursor, source: &str) -> IndexedColumn {
         IndexedColumn {
-            column: NodeFuncs::as_string(&cursor.node(), source),
+            column: CassandraParser::parse_identifier(&cursor.node(), source),
 
             idx: if cursor.goto_next_sibling() && cursor.node().kind().eq("[") {
                 // consume '['
@@ -1369,14 +1392,14 @@ impl CassandraParser {
     }
 
     /// parse a column list
-    fn parse_column_list(node: &Node, source: &str) -> Vec<String> {
-        let mut result: Vec<String> = vec![];
+    fn parse_column_list(node: &Node, source: &str) -> Vec<Identifier> {
+        let mut result: Vec<Identifier> = vec![];
         let mut cursor = node.walk();
         let mut process = cursor.goto_first_child();
 
         while process {
             if cursor.node().kind().eq("column") {
-                result.push(NodeFuncs::as_string(&cursor.node(), source));
+                result.push(CassandraParser::parse_identifier(&cursor.node(), source));
             }
             process = cursor.goto_next_sibling();
             // consume ',' if it is there
@@ -1440,20 +1463,17 @@ impl CassandraParser {
 
     /// parse a name that may have a keyspace specified.
     fn parse_dotted_name(cursor: &mut TreeCursor, source: &str) -> FQName {
-        let result = NodeFuncs::as_string(&cursor.node(), source);
+        let result = &cursor.node();
         if cursor.goto_next_sibling() {
             // we have fully qualified name
             // consume '.'
             cursor.goto_next_sibling();
-            FQName {
-                keyspace: Some(result),
-                name: NodeFuncs::as_string(&cursor.node(), source),
-            }
+            FQName::new(
+                NodeFuncs::as_str(result, source),
+                NodeFuncs::as_str(&cursor.node(), source),
+            )
         } else {
-            FQName {
-                keyspace: None,
-                name: result,
-            }
+            FQName::simple(NodeFuncs::as_str(result, source))
         }
     }
 
@@ -1510,7 +1530,9 @@ impl CassandraParser {
                 }
             }
             "bind_marker" => Operand::Param(NodeFuncs::as_string(node, source)),
-            "object_name" | "column" => Operand::Column(NodeFuncs::as_string(node, source)),
+            "object_name" | "column" => {
+                Operand::Column(CassandraParser::parse_identifier(node, source))
+            }
             "assignment_tuple" => {
                 Operand::Tuple(CassandraParser::parse_assignment_tuple(node, source))
             }
@@ -1520,7 +1542,7 @@ impl CassandraParser {
             }
             "assignment_set" => Operand::Set(CassandraParser::parse_assignment_set(node, source)),
             "function_args" => Operand::Tuple(CassandraParser::parse_function_args(node, source)),
-            "function_call" => Operand::Func(NodeFuncs::as_string(node, source)),
+            "function_call" => Operand::Func(CassandraParser::parse_identifier(node, source)),
             _ => {
                 unreachable!("{}", node.kind())
             }
@@ -1763,7 +1785,7 @@ impl CassandraParser {
             "relation_contains_key" => {
                 cursor.goto_first_child();
                 RelationElement {
-                    obj: Operand::Column(NodeFuncs::as_string(&cursor.node(), source)),
+                    obj: Operand::Column(CassandraParser::parse_identifier(&cursor.node(), source)),
                     oper: RelationOperator::ContainsKey,
                     value: {
                         // consume column value
@@ -1779,7 +1801,7 @@ impl CassandraParser {
             "relation_contains" => {
                 cursor.goto_first_child();
                 RelationElement {
-                    obj: Operand::Column(NodeFuncs::as_string(&cursor.node(), source)),
+                    obj: Operand::Column(CassandraParser::parse_identifier(&cursor.node(), source)),
                     oper: RelationOperator::Contains,
                     value: {
                         // consume column value
@@ -1854,8 +1876,8 @@ impl CassandraParser {
         let node = cursor.node();
         let kind = node.kind();
         match kind {
-            "column" => Operand::Column(NodeFuncs::as_string(&node, source)),
-            "function_call" => Operand::Func(NodeFuncs::as_string(&node, source)),
+            "column" => Operand::Column(CassandraParser::parse_identifier(&node, source)),
+            "function_call" => Operand::Func(CassandraParser::parse_identifier(&node, source)),
             "(" => {
                 let mut values: Vec<Operand> = Vec::new();
                 // consume '('
@@ -1882,7 +1904,7 @@ impl CassandraParser {
         // consume "BY"
         cursor.goto_next_sibling();
         Some(OrderClause {
-            name: NodeFuncs::as_string(&cursor.node(), source),
+            name: CassandraParser::parse_identifier(&cursor.node(), source),
             desc: {
                 // consume the name
                 if cursor.goto_next_sibling() {
@@ -1905,19 +1927,25 @@ impl CassandraParser {
             // we have an alias
             // consume 'AS'
             cursor.goto_next_sibling();
-            Some(NodeFuncs::as_string(&cursor.node(), source))
+            Some(cursor.node())
         } else {
             None
         };
-        match type_.kind() {
-            "column" => SelectElement::Column(Named {
-                name: NodeFuncs::as_string(&type_, source),
-                alias,
-            }),
-            "function_call" => SelectElement::Function(Named {
-                name: NodeFuncs::as_string(&type_, source),
-                alias,
-            }),
+        match (type_.kind(), alias) {
+            ("column", Some(alias)) => SelectElement::Column(Named::new(
+                NodeFuncs::as_str(&type_, source),
+                NodeFuncs::as_str(&alias, source),
+            )),
+            ("column", None) => {
+                SelectElement::Column(Named::simple(NodeFuncs::as_str(&type_, source)))
+            }
+            ("function_call", Some(alias)) => SelectElement::Function(Named::new(
+                NodeFuncs::as_str(&type_, source),
+                NodeFuncs::as_str(&alias, source),
+            )),
+            ("function_call", None) => {
+                SelectElement::Function(Named::simple(NodeFuncs::as_str(&type_, source)))
+            }
             _ => unreachable!(),
         }
     }
