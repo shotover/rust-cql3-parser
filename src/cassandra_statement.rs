@@ -401,18 +401,18 @@ mod tests {
 
     // only tests single results
     fn test_parsing(expected: &[&str], statements: &[&str]) {
-        for i in 0..statements.len() {
-            let ast = CassandraAST::new(statements[i]);
+        for (statement, expected) in statements.iter().zip(expected) {
+            let ast = CassandraAST::new(statement);
             assert!(
                 !ast.has_error(),
                 "AST has error\n{}\n{} ",
-                statements[i],
+                statement,
                 ast.tree.root_node().to_sexp()
             );
             let stmt = &ast.statements[0];
             assert!(!stmt.has_error);
             let stmt_str = stmt.statement.to_string();
-            assert_eq!(expected[i], stmt_str);
+            assert_eq!(*expected, stmt_str);
         }
     }
     #[test]
@@ -447,7 +447,7 @@ mod tests {
             "SELECT column FROM table WHERE func(*) = func2(*)",
             "SELECT column FROM table WHERE col IN ( 'literal', 5, func(*), true )",
             "SELECT column FROM table WHERE (col1, col2) IN (( 5, 'stuff'), (6, 'other'));",
-            "SELECT column FROM table WHERE (col1, col2) >= ( 5, 'stuff'), (6, 'other')",
+            "SELECT column FROM table WHERE (col1, col2) >= (( 5, 'stuff'), (6, 'other'))",
             "SELECT column FROM table WHERE col1 CONTAINS 'foo'",
             "SELECT column FROM table WHERE col1 CONTAINS KEY 'foo'",
             "SELECT column FROM table ORDER BY col1",
@@ -488,7 +488,7 @@ mod tests {
             "SELECT column FROM table WHERE func(*) = func2(*)",
             "SELECT column FROM table WHERE col IN ('literal', 5, func(*), true)",
             "SELECT column FROM table WHERE (col1, col2) IN ((5, 'stuff'), (6, 'other'))",
-            "SELECT column FROM table WHERE (col1, col2) >= (5, 'stuff'), (6, 'other')",
+            "SELECT column FROM table WHERE (col1, col2) >= ((5, 'stuff'), (6, 'other'))",
             "SELECT column FROM table WHERE col1 CONTAINS 'foo'",
             "SELECT column FROM table WHERE col1 CONTAINS KEY 'foo'",
             "SELECT column FROM table ORDER BY col1 ASC",

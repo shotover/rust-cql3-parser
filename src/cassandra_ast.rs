@@ -1823,28 +1823,21 @@ impl CassandraParser {
                     value: {
                         // consume the oper
                         cursor.goto_next_sibling();
-                        let mut values = vec![];
-                        let inline_tuple = if cursor.node().kind().eq("(") {
-                            // inline tuple or function_args
+
+                        if cursor.node().kind() == "(" {
                             cursor.goto_next_sibling();
-                            true
-                        } else {
-                            false
-                        };
-                        values.push(CassandraParser::parse_operand(&cursor.node(), source));
+                        }
+                        let mut values =
+                            vec![CassandraParser::parse_operand(&cursor.node(), source)];
                         cursor.goto_next_sibling();
-                        while cursor.node().kind().eq(",") {
+                        while cursor.node().kind() == "," {
                             cursor.goto_next_sibling();
                             values.push(CassandraParser::parse_operand(&cursor.node(), source));
                         }
                         if values.len() > 1 {
-                            if inline_tuple {
-                                Operand::Tuple(values)
-                            } else {
-                                Operand::Collection(values)
-                            }
+                            Operand::Tuple(values)
                         } else {
-                            values[0].clone()
+                            values.remove(0)
                         }
                     },
                 }
