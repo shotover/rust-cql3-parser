@@ -169,8 +169,8 @@ pub enum Operand {
     Tuple(Vec<Operand>),
     /// A column name
     Column(Identifier),
-    /// A function name
-    Func(Identifier),
+    /// A function call e.g. foo(bar)
+    Func(String),
     /// A parameter.  The string will either be '?' or ':name'
     Param(String),
     /// the `NULL` value.
@@ -342,10 +342,10 @@ impl Operand {
 impl Display for Operand {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operand::Column(id) | Operand::Func(id) => {
+            Operand::Column(id) => {
                 write!(f, "{}", id)
             }
-            Operand::Const(text) | Operand::Param(text) => {
+            Operand::Const(text) | Operand::Param(text) | Operand::Func(text) => {
                 write!(f, "{}", text)
             }
             Operand::Map(entries) => {

@@ -1542,7 +1542,7 @@ impl CassandraParser {
             }
             "assignment_set" => Operand::Set(CassandraParser::parse_assignment_set(node, source)),
             "function_args" => Operand::Tuple(CassandraParser::parse_function_args(node, source)),
-            "function_call" => Operand::Func(CassandraParser::parse_identifier(node, source)),
+            "function_call" => Operand::Func(NodeFuncs::as_string(node, source)),
             _ => {
                 unreachable!("{}", node.kind())
             }
@@ -1870,7 +1870,7 @@ impl CassandraParser {
         let kind = node.kind();
         match kind {
             "column" => Operand::Column(CassandraParser::parse_identifier(&node, source)),
-            "function_call" => Operand::Func(CassandraParser::parse_identifier(&node, source)),
+            "function_call" => Operand::Func(NodeFuncs::as_string(&node, source)),
             "(" => {
                 let mut values: Vec<Operand> = Vec::new();
                 // consume '('
