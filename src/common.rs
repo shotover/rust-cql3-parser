@@ -713,6 +713,7 @@ impl FQName {
             FQName::simple(txt)
         }
     }
+
     pub fn simple(name: &str) -> FQName {
         FQName {
             keyspace: None,
@@ -724,15 +725,6 @@ impl FQName {
         FQName {
             keyspace: Some(Identifier::parse(keyspace)),
             name: Identifier::parse(name),
-        }
-    }
-
-    /// extracts the keyspace,  Return default if none
-    pub fn extract_keyspace<'a>(&'a self, default: &'a Identifier) -> &'a Identifier {
-        if let Some(keyspace) = &self.keyspace {
-            keyspace
-        } else {
-            default
         }
     }
 }
@@ -759,8 +751,6 @@ impl From<FQName> for std::string::String {
     }
 }
 
-#[derive(Debug, Clone, Eq, Ord, PartialOrd, Deserialize)]
-
 /// Identifers are either Quoted or Unquoted.
 ///  * Unquoted Identifiers:  are case insensitive
 ///  * Quoted Identifiers: are case sensitive.  double quotes appearing within the quoted string are escaped by doubling (i.e. `"foo""bar" is interpreted as `foo"bar`)
@@ -773,6 +763,7 @@ impl From<FQName> for std::string::String {
 /// It is possible to create an Unquoted identifier with an embedded quote (e.g. `Identifier::Unquoted( "foo\"bar" )`).
 /// *Note* that a quote as the first character in an Unquoted Identifier can cause problems if the Identifier is converted
 /// to a string and then parsed again as the second parse will create a Quoted identifier.
+#[derive(Debug, Clone, Eq, Ord, PartialOrd, Deserialize)]
 pub enum Identifier {
     /// This variant is case sensitive
     /// "fOo""bAr""" is stored as fOo"bAr"

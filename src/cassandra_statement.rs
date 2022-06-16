@@ -195,47 +195,49 @@ impl CassandraStatement {
 
     pub fn get_keyspace<'a>(&'a self, default: &'a Identifier) -> &'a Identifier {
         match self {
-            CassandraStatement::AlterKeyspace(named) => &named.name,
-            CassandraStatement::AlterMaterializedView(named) => {
-                named.name.extract_keyspace(default)
+            CassandraStatement::AlterKeyspace(x) => &x.name,
+            CassandraStatement::AlterMaterializedView(x) => {
+                x.name.keyspace.as_ref().unwrap_or(default)
             }
             CassandraStatement::AlterRole(_) => default,
-            CassandraStatement::AlterTable(named) => named.name.extract_keyspace(default),
-            CassandraStatement::AlterType(named) => named.name.extract_keyspace(default),
+            CassandraStatement::AlterTable(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::AlterType(x) => x.name.keyspace.as_ref().unwrap_or(default),
             CassandraStatement::AlterUser(_) => default,
             CassandraStatement::ApplyBatch => default,
-            CassandraStatement::CreateAggregate(named) => named.name.extract_keyspace(default),
-            CassandraStatement::CreateFunction(named) => named.name.extract_keyspace(default),
-            CassandraStatement::CreateIndex(named) => named.table.extract_keyspace(default),
-            CassandraStatement::CreateKeyspace(named) => &named.name,
-            CassandraStatement::CreateMaterializedView(named) => {
-                named.name.extract_keyspace(default)
+            CassandraStatement::CreateAggregate(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::CreateFunction(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::CreateIndex(x) => x.table.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::CreateKeyspace(x) => &x.name,
+            CassandraStatement::CreateMaterializedView(x) => {
+                x.name.keyspace.as_ref().unwrap_or(default)
             }
             CassandraStatement::CreateRole(_) => default,
-            CassandraStatement::CreateTable(named) => named.name.extract_keyspace(default),
-            CassandraStatement::CreateTrigger(named) => named.name.extract_keyspace(default),
-            CassandraStatement::CreateType(named) => named.name.extract_keyspace(default),
+            CassandraStatement::CreateTable(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::CreateTrigger(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::CreateType(x) => x.name.keyspace.as_ref().unwrap_or(default),
             CassandraStatement::CreateUser(_) => default,
-            CassandraStatement::Delete(named) => named.table_name.extract_keyspace(default),
-            CassandraStatement::DropAggregate(named) => named.name.extract_keyspace(default),
-            CassandraStatement::DropFunction(named) => named.name.extract_keyspace(default),
-            CassandraStatement::DropIndex(named) => named.name.extract_keyspace(default),
-            CassandraStatement::DropKeyspace(named) => &named.name.name,
-            CassandraStatement::DropMaterializedView(named) => named.name.extract_keyspace(default),
+            CassandraStatement::Delete(x) => x.table_name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::DropAggregate(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::DropFunction(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::DropIndex(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::DropKeyspace(x) => &x.name.name,
+            CassandraStatement::DropMaterializedView(x) => {
+                x.name.keyspace.as_ref().unwrap_or(default)
+            }
             CassandraStatement::DropRole(_) => default,
-            CassandraStatement::DropTable(named) => named.name.extract_keyspace(default),
-            CassandraStatement::DropTrigger(named) => named.name.extract_keyspace(default),
-            CassandraStatement::DropType(named) => named.name.extract_keyspace(default),
+            CassandraStatement::DropTable(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::DropTrigger(x) => x.name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::DropType(x) => x.name.keyspace.as_ref().unwrap_or(default),
             CassandraStatement::DropUser(_) => default,
             CassandraStatement::Grant(_) => default,
-            CassandraStatement::Insert(named) => named.table_name.extract_keyspace(default),
+            CassandraStatement::Insert(x) => x.table_name.keyspace.as_ref().unwrap_or(default),
             CassandraStatement::ListPermissions(_) => default,
             CassandraStatement::ListRoles(_) => default,
             CassandraStatement::Revoke(_) => default,
-            CassandraStatement::Select(named) => named.table_name.extract_keyspace(default),
-            CassandraStatement::Truncate(named) => named.extract_keyspace(default),
-            CassandraStatement::Update(named) => named.table_name.extract_keyspace(default),
-            CassandraStatement::Use(named) => named,
+            CassandraStatement::Select(x) => x.table_name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::Truncate(name) => name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::Update(x) => x.table_name.keyspace.as_ref().unwrap_or(default),
+            CassandraStatement::Use(name) => name,
             CassandraStatement::Unknown(_) => default,
         }
     }
