@@ -175,8 +175,6 @@ pub enum Operand {
     Param(String),
     /// the `NULL` value.
     Null,
-    /// an arbitrary collection of Operands
-    Collection(Vec<Operand>),
 }
 
 /// this is _NOT_ the same as `Operand::Const(string)`  This conversion encloses the value in
@@ -381,7 +379,6 @@ impl Display for Operand {
                 write!(f, "{}", result)
             }
             Operand::Null => write!(f, "NULL"),
-            Operand::Collection(operands) => write!(f, "{}", operands.iter().join(", ").as_str()),
         }
     }
 }
