@@ -1847,9 +1847,7 @@ impl CassandraParser {
 
     // Parse an Operator
     fn parse_operator(cursor: &mut TreeCursor) -> RelationOperator {
-        let node = cursor.node();
-        let kind = node.kind();
-        match kind {
+        match cursor.node().kind() {
             "<" => RelationOperator::LessThan,
             "<=" => RelationOperator::LessThanOrEqual,
             "<>" => RelationOperator::NotEqual,
@@ -1857,8 +1855,7 @@ impl CassandraParser {
             ">=" => RelationOperator::GreaterThanOrEqual,
             ">" => RelationOperator::GreaterThan,
             "IN" => RelationOperator::In,
-
-            _ => {
+            kind => {
                 unreachable!("Unknown operator: {}", kind);
             }
         }
