@@ -3,7 +3,7 @@ use crate::alter_column::AlterColumnType;
 use crate::alter_materialized_view::AlterMaterializedView;
 use crate::alter_table::{AlterTable, AlterTableOperation};
 use crate::alter_type::{AlterType, AlterTypeOperation};
-use crate::begin_batch::BeginBatch;
+use crate::begin_batch::{BatchType, BeginBatch};
 use crate::cassandra_statement::CassandraStatement;
 use crate::common::{
     ColumnDefinition, DataType, DataTypeName, FQName, Identifier, Operand, OptionValue,
@@ -1651,27 +1651,37 @@ impl CassandraParser {
 
     /// parse a `BEGIN BATCH` clause
     fn parse_begin_batch(node: &Node, source: &str) -> BeginBatch {
-        let mut result = BeginBatch::new();
-
         let mut cursor = node.walk();
         cursor.goto_first_child();
         // consume BEGIN
         cursor.goto_next_sibling();
 
         let node = cursor.node();
-        result.logged = node.kind().eq("LOGGED");
-        result.unlogged = node.kind().eq("UNLOGGED");
-        if result.logged || result.unlogged {
-            // used a node so advance
-            cursor.goto_next_sibling();
-        }
-        // consume BATCH
-        if cursor.goto_next_sibling() {
-            // we should have using_timestamp_spec
-            result.timestamp = CassandraParser::parse_using_timestamp(&cursor.node(), source)
-        }
+        let ty = match node.kind() {
+            "COUNTER" => {
+                cursor.goto_next_sibling();
+                BatchType::Counter
+            }
+            "UNLOGGED" => {
+                cursor.goto_next_sibling();
+                BatchType::Unlogged
+            }
+            "LOGGED" => {
+                cursor.goto_next_sibling();
+                BatchType::Logged
+            }
+            _ => BatchType::Logged,
+        };
 
-        result
+        // consume BATCH
+        let timestamp = if cursor.goto_next_sibling() {
+            // we should have using_timestamp_spec
+            CassandraParser::parse_using_timestamp(&cursor.node(), source)
+        } else {
+            None
+        };
+
+        BeginBatch { ty, timestamp }
     }
 
     pub fn parse_select_elements(node: &Node, source: &str) -> Vec<SelectElement> {
