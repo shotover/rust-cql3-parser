@@ -507,7 +507,7 @@ mod tests {
     #[test]
     fn test_insert_statements() {
         let stmts = [
-            "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5);",
+            "BEGIN COUNTER BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5);",
             "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
             "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
             "INSERT INTO table (col1, col2) JSON $$ json code $$",
@@ -518,7 +518,7 @@ mod tests {
             "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', ?) IF NOT EXISTS",
     ];
         let expected = [
-            "BEGIN LOGGED BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5)",
+            "BEGIN COUNTER BATCH USING TIMESTAMP 5 INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5)",
             "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) IF NOT EXISTS",
             "INSERT INTO keyspace.table (col1, col2) VALUES ('hello', 5) USING TIMESTAMP 3",
             "INSERT INTO table (col1, col2) JSON $$ json code $$",
@@ -544,7 +544,7 @@ mod tests {
             "DELETE column, column3 from keyspace.table WHERE column2='foo' IF column4 = ?",
         ];
         let expected  = [
-            "BEGIN LOGGED BATCH USING TIMESTAMP 5 DELETE column['hello'] FROM table WHERE column2 = 'foo' IF EXISTS",
+            "BEGIN BATCH USING TIMESTAMP 5 DELETE column['hello'] FROM table WHERE column2 = 'foo' IF EXISTS",
             "BEGIN UNLOGGED BATCH DELETE column[6] FROM keyspace.table USING TIMESTAMP 5 WHERE column2 = 'foo' IF column3 = 'stuff'",
             "BEGIN BATCH DELETE column['hello'] FROM keyspace.table WHERE column2 = 'foo'",
             "DELETE FROM table WHERE column2 = 'foo'",
@@ -745,7 +745,7 @@ mod tests {
             "UPDATE foo SET c = 'yo', v = 123 WHERE z = 1",
     ];
         let expected = [
-            "BEGIN LOGGED BATCH USING TIMESTAMP 5 UPDATE keyspace.table SET col1 = 'foo' WHERE col2 = 5",
+            "BEGIN BATCH USING TIMESTAMP 5 UPDATE keyspace.table SET col1 = 'foo' WHERE col2 = 5",
             "UPDATE keyspace.table USING TIMESTAMP 3 SET col1 = 'foo' WHERE col2 = 5",
             "UPDATE keyspace.table SET col1 = 'foo' WHERE col2 = 5 IF EXISTS",
             "UPDATE keyspace.table SET col1 = 'foo' WHERE col2 = 5 IF col3 = 7",
