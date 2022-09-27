@@ -1,3 +1,5 @@
+#![allow(clippy::derive_partial_eq_without_eq)]
+
 pub mod aggregate;
 pub mod alter_column;
 pub mod alter_materialized_view;
