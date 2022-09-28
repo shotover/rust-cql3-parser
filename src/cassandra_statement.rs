@@ -399,7 +399,13 @@ impl Display for CassandraStatement {
 
 #[cfg(test)]
 mod tests {
-    use crate::cassandra_ast::CassandraAST;
+    use crate::{
+        cassandra_ast::CassandraAST,
+        cassandra_statement::CassandraStatement,
+        common::{FQName, Identifier},
+        common_drop::CommonDrop,
+        select::{Select, SelectElement},
+    };
 
     // only tests single results
     fn test_parsing(expected: &[&str], statements: &[&str]) {
@@ -417,6 +423,48 @@ mod tests {
             assert_eq!(*expected, stmt_str);
         }
     }
+
+    fn assert_ast(query: &str, expected: &CassandraStatement) {
+        let ast = CassandraAST::new(query);
+        assert!(
+            !ast.has_error(),
+            "AST has error\n{}\n{} ",
+            query,
+            ast.tree.root_node().to_sexp()
+        );
+        assert_eq!(&ast.statements[0].statement, expected)
+    }
+
+    #[test]
+    fn test_ast() {
+        assert_ast(
+            "SELECT * FROM foo.table;",
+            &CassandraStatement::Select(Select {
+                distinct: false,
+                json: false,
+                table_name: FQName {
+                    keyspace: Some(Identifier::Unquoted("foo".into())),
+                    name: Identifier::Unquoted("table".into()),
+                },
+                columns: vec![SelectElement::Star],
+                where_clause: vec![],
+                order: None,
+                limit: None,
+                filtering: false,
+            }),
+        );
+        assert_ast(
+            "DROP TABLE keyspace.table;",
+            &CassandraStatement::DropTable(CommonDrop {
+                name: FQName {
+                    keyspace: Some(Identifier::Unquoted("keyspace".into())),
+                    name: Identifier::Unquoted("table".into()),
+                },
+                if_exists: false,
+            }),
+        );
+    }
+
     #[test]
     fn test_select_statements() {
         let stmts = [

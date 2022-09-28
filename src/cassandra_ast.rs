@@ -1970,7 +1970,7 @@ impl CassandraParser {
             cursor.goto_next_sibling();
         }
         CommonDrop {
-            name: CassandraParser::parse_dotted_name(&mut cursor, source),
+            name: CassandraParser::parse_table_name(&cursor.node(), source),
             if_exists,
         }
     }
