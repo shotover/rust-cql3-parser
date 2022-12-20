@@ -1,4 +1,3 @@
-use crate::common::Identifier::{Quoted, Unquoted};
 use bigdecimal::BigDecimal;
 use bytes::Bytes;
 use hex;
@@ -751,6 +750,24 @@ impl From<FQName> for std::string::String {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct FQNameRef<'a> {
+    pub keyspace: Option<IdentifierRef<'a>>,
+    pub name: IdentifierRef<'a>,
+}
+
+impl PartialEq<FQName> for FQNameRef<'_> {
+    fn eq(&self, other: &FQName) -> bool {
+        self.keyspace == other.keyspace.as_ref().map(|x| x.as_ref()) && self.name == other.name
+    }
+}
+
+impl PartialEq<FQNameRef<'_>> for FQName {
+    fn eq(&self, other: &FQNameRef<'_>) -> bool {
+        self.keyspace.as_ref().map(|x| x.as_ref()) == other.keyspace && self.name == other.name
+    }
+}
+
 /// Identifers are either Quoted or Unquoted.
 ///  * Unquoted Identifiers:  are case insensitive
 ///  * Quoted Identifiers: are case sensitive.  double quotes appearing within the quoted string are escaped by doubling (i.e. `"foo""bar" is interpreted as `foo"bar`)
@@ -787,29 +804,31 @@ impl Identifier {
             let mut chars = text.chars();
             chars.next();
             chars.next_back();
-            Quoted(chars.as_str().replace("\"\"", "\""))
+            Identifier::Quoted(chars.as_str().replace("\"\"", "\""))
         } else {
-            Unquoted(text.to_string())
+            Identifier::Unquoted(text.to_string())
+        }
+    }
+
+    fn as_ref(&'_ self) -> IdentifierRef<'_> {
+        match self {
+            Self::Quoted(x) => IdentifierRef::Quoted(x),
+            Self::Unquoted(x) => IdentifierRef::Unquoted(x),
         }
     }
 }
 
 impl PartialEq for Identifier {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (&Quoted(ref a), &Quoted(ref b)) => a == b,
-            (&Unquoted(ref a), &Unquoted(ref b)) => a.to_lowercase() == b.to_lowercase(),
-            (&Quoted(ref a), &Unquoted(ref b)) => a == &b.to_lowercase(),
-            (&Unquoted(ref a), &Quoted(ref b)) => &a.to_lowercase() == b,
-        }
+        self.as_ref() == other.as_ref()
     }
 }
 
 impl Hash for Identifier {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        match &self {
-            Quoted(ref a) => a.hash(state),
-            Unquoted(ref a) => a.to_lowercase().hash(state),
+        match self {
+            Identifier::Quoted(a) => a.hash(state),
+            Identifier::Unquoted(a) => a.to_lowercase().hash(state),
         }
     }
 }
@@ -817,15 +836,15 @@ impl Hash for Identifier {
 impl Display for Identifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self {
-            Quoted(txt) => write!(f, "\"{}\"", txt.replace('\"', "\"\"")),
-            Unquoted(txt) => write!(f, "{}", txt),
+            Identifier::Quoted(txt) => write!(f, "\"{}\"", txt.replace('\"', "\"\"")),
+            Identifier::Unquoted(txt) => write!(f, "{}", txt),
         }
     }
 }
 
 impl Default for Identifier {
     fn default() -> Self {
-        Unquoted("".to_string())
+        Identifier::Unquoted("".to_string())
     }
 }
 
@@ -838,6 +857,44 @@ impl From<&str> for Identifier {
 impl From<&String> for Identifier {
     fn from(txt: &String) -> Self {
         Identifier::parse(txt)
+    }
+}
+
+/// An alternative to [Identifier] that holds &str instead of String.
+/// Allows for allocationless comparison of [Identifier].
+#[derive(Debug)]
+pub enum IdentifierRef<'a> {
+    /// This variant is case sensitive
+    /// "fOo""bAr""" is stored as fOo"bAr"
+    Quoted(&'a str),
+    /// This variant is case insensitive
+    /// Only ascii alphanumeric and _ characters are allowed in this variant
+    /// fOo_bAr is stored as fOo_bAr
+    Unquoted(&'a str),
+}
+
+impl PartialEq for IdentifierRef<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (IdentifierRef::Quoted(a), IdentifierRef::Quoted(b)) => a == b,
+            (IdentifierRef::Unquoted(a), IdentifierRef::Unquoted(b)) => {
+                a.to_lowercase() == b.to_lowercase()
+            }
+            (IdentifierRef::Quoted(a), IdentifierRef::Unquoted(b)) => a == &b.to_lowercase(),
+            (IdentifierRef::Unquoted(a), IdentifierRef::Quoted(b)) => &a.to_lowercase() == b,
+        }
+    }
+}
+
+impl PartialEq<Identifier> for IdentifierRef<'_> {
+    fn eq(&self, other: &Identifier) -> bool {
+        self == &other.as_ref()
+    }
+}
+
+impl PartialEq<IdentifierRef<'_>> for Identifier {
+    fn eq(&self, other: &IdentifierRef<'_>) -> bool {
+        &self.as_ref() == other
     }
 }
 
