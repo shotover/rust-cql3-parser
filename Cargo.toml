@@ -1,6 +1,6 @@
 [package]
 name = "cql3-parser"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["Claude <claude.warren@instaclustr.com>"]
 edition = "2021"
 rust-version = "1.56"
