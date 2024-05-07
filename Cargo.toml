@@ -22,8 +22,8 @@ bigdecimal = { version ="0.4.0", features = ["serde"] }
 serde = { version = "1.0.111", features = ["derive"] }
 
 # Parsers
-tree-sitter = "0.20.5"
-tree-sitter-cql = "0.1.1"
+tree-sitter = "0.22.6"
+tree-sitter-cql = "0.1.2"
 
 [dev-dependencies]
 
