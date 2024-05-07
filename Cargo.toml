@@ -13,7 +13,7 @@ description = "A Rust implementation of a CQL3 Parser"
 
 
 [dependencies]
-itertools = "0.12.0"
+itertools = "0.13.0"
 bytes = "1.0.0"
 hex = "0.4.3"
 num = { version = "0.4.0", features = ["serde"] }
@@ -22,8 +22,8 @@ bigdecimal = { version ="0.4.0", features = ["serde"] }
 serde = { version = "1.0.111", features = ["derive"] }
 
 # Parsers
-tree-sitter = "0.20.5"
-tree-sitter-cql = "0.1.1"
+tree-sitter = "0.22.6"
+tree-sitter-cql = "0.2.0"
 
 [dev-dependencies]
 

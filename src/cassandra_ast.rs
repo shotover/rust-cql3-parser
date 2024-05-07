@@ -2031,7 +2031,7 @@ impl CassandraAST {
     pub fn new(cassandra_statement: &str) -> CassandraAST {
         let language = tree_sitter_cql::language();
         let mut parser = tree_sitter::Parser::new();
-        if parser.set_language(language).is_err() {
+        if parser.set_language(&language).is_err() {
             panic!("language version mismatch");
         }
 
