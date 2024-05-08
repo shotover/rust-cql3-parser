@@ -1,6 +1,6 @@
 [package]
 name = "cql3-parser"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Claude <claude.warren@instaclustr.com>"]
 edition = "2021"
 rust-version = "1.56"
@@ -23,7 +23,7 @@ serde = { version = "1.0.111", features = ["derive"] }
 
 # Parsers
 tree-sitter = "0.22.6"
-tree-sitter-cql = "0.1.2"
+tree-sitter-cql = "0.2.0"
 
 [dev-dependencies]
 
