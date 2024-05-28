@@ -45,7 +45,7 @@ checksum = "099a5357d84c4c61eb35fc8eafa9a79a902c2f76911e5747ced4e032edd8d9b4"
 
 [[package]]
 name = "cql3-parser"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "bigdecimal",
  "bytes",
