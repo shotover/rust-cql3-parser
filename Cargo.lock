@@ -48,7 +48,7 @@ dependencies = [
 
 [[package]]
 name = "cql3-parser"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "bigdecimal",
  "bytes",
