@@ -2,7 +2,7 @@ use bigdecimal::BigDecimal;
 use bytes::Bytes;
 use hex;
 use itertools::Itertools;
-use num::BigInt;
+use num_bigint::BigInt;
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::{Display, Formatter};
@@ -795,7 +795,7 @@ impl Identifier {
     /// parses strings as returned by the parser into Quoted or Unquoted Identifiers.
     ///  * Unquoted Identifiers:  are case insensitive
     ///  * Quoted Identifiers: are case sensitive.  double quotes appearing within the quoted string
-    /// are escaped by doubling (i.e. `"foo""bar" is interpreted as `foo"bar`)
+    ///    are escaped by doubling (i.e. `"foo""bar" is interpreted as `foo"bar`)
     ///
     /// If the string starts with `"` it is assumed to be a quoted identifier, the leading and trailing quotes are removed
     /// and the internal doubled quotes (`""`) are converted to simple quotes (`"`).
