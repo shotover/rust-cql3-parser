@@ -3,7 +3,6 @@ use bytes::Bytes;
 use hex;
 use itertools::Itertools;
 use num_bigint::BigInt;
-use serde::Deserialize;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -694,7 +693,7 @@ impl WhereClause {
 }
 
 /// a fully qualified name.
-#[derive(PartialEq, Debug, Clone, Hash, Eq, Deserialize)]
+#[derive(PartialEq, Debug, Clone, Hash, Eq)]
 pub struct FQName {
     pub keyspace: Option<Identifier>,
     pub name: Identifier,
@@ -780,7 +779,7 @@ impl PartialEq<FQNameRef<'_>> for FQName {
 /// It is possible to create an Unquoted identifier with an embedded quote (e.g. `Identifier::Unquoted( "foo\"bar" )`).
 /// *Note* that a quote as the first character in an Unquoted Identifier can cause problems if the Identifier is converted
 /// to a string and then parsed again as the second parse will create a Quoted identifier.
-#[derive(Debug, Clone, Eq, Ord, PartialOrd, Deserialize)]
+#[derive(Debug, Clone, Eq, Ord, PartialOrd)]
 pub enum Identifier {
     /// This variant is case sensitive
     /// "fOo""bAr""" is stored as fOo"bAr"
