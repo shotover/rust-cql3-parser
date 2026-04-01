@@ -25,8 +25,13 @@ jobs:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     steps:
-    - uses: actions/checkout@v2
-    - uses: Swatinem/rust-cache@v1
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
+    - uses: step-security/rust-cache@9be15b830520fab0ec3939586e917e4855cf76bd # v2.8.3
       with:
         # rust-cache already handles all the sane defaults for caching rust builds.
         # However because we are running seperate debug/release builds in parallel,
